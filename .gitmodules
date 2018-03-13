@@ -1,0 +1,9 @@
+[submodule "cryptopp"]
+	path = cryptopp
+	url = https://github.com/weidai11/cryptopp
+[submodule "pugixml"]
+	path = pugixml
+	url = https://github.com/zeux/pugixml
+[submodule "tinydir"]
+	path = tinydir
+	url = https://github.com/cxong/tinydir
