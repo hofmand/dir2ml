@@ -13,14 +13,14 @@ Example usage:
 
 Arguments:
 
-[**-c** *country*] ([ISO3166-1 alpha-2](https://datahub.io/core/country-list) two letter country code)
+[**`-c`** *country*] ([ISO3166-1 alpha-2](https://datahub.io/core/country-list) two letter country code)
 
-**-d** *directory*
+**`-d`** *directory*
 
-**-h** *(help)*
+**`-h`** *(help)*
 
-**-o** *output filename (.meta4)*
+**`-o`** *output filename (.meta4)*
 
-**-u** *base URL*
+**`-u`** *base URL*
 
-**[-v]** *(want verbose)*
+**[`-v`]** *(want verbose)*
