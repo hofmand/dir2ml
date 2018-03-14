@@ -39,9 +39,10 @@ constexpr wchar_t* VERSION_NO = L"0.1.0";
 //
 // [-c country] (ISO3166-1 2 two letter country code)
 // -d directory
+// -h (help)
 // -o output filename (.meta4)
 // -u base URL
-// -v (verbose output)
+// [-v] (verbose output)
 //
 //////////////////////////////////////////////////////////////////////////
 //
@@ -269,7 +270,7 @@ int wmain( int argc, wchar_t **argv )
 	bool wantHelp(false);
 	bool wantVerbose(false);
 
-	wcout << L"mlbuilder v" << VERSION_NO << endl;
+	wcout << L"mlbuilder v" << VERSION_NO << L"\n" << endl;
 
 	for(int a = 1; a < argc; ++a)
 	{
@@ -312,7 +313,7 @@ int wmain( int argc, wchar_t **argv )
 				wantVerbose = true;
 				break;
 			default:
-				wcerr << L"Invalid argument: \"" << argv[a] << L"\"\n"
+				wcerr << L"Invalid argument: \"" << argv[a] << L"\""
 					<< endl;
 				invalidArgs = true;
 				goto invalidargs;
@@ -320,44 +321,51 @@ int wmain( int argc, wchar_t **argv )
 		}
 		else
 		{
-			wcerr << L"Invalid argument: \"" << argv[a] << L"\"\n" << endl;
+			wcerr << L"Invalid argument: \"" << argv[a] << L"\"" << endl;
 			invalidArgs = true;
 		}
 	}
 
-	if (inputDirName.empty())
+	if (!wantHelp)
 	{
-		wcerr << L"Missing input directory!\n" << endl;
-		invalidArgs = true;
-	}
+		if (inputDirName.empty())
+		{
+			wcerr << L"Missing input directory!" << endl;
+			invalidArgs = true;
+		}
 
-	if (baseURL.empty())
-	{
-		wcerr << L"Missing base URL!\n" << endl;
-		invalidArgs = true;
-	}
+		if (baseURL.empty())
+		{
+			wcerr << L"Missing base URL!" << endl;
+			invalidArgs = true;
+		}
 
-	if (!country.empty() && country.size() != 2)
-	{
-		wcerr << "Invalid country code \"" << country << "\"!\n" << endl;
-		invalidArgs = true;
-	}
+		if (!country.empty() && country.size() != 2)
+		{
+			wcerr << "Invalid country code \"" << country << "\"!" << endl;
+			invalidArgs = true;
+		}
 
-	if (outFileName.empty())
-	{
-		wcerr << L"Missing output filename!\n" << endl;
-		invalidArgs = true;
+		if (outFileName.empty())
+		{
+			wcerr << L"Missing output filename!" << endl;
+			invalidArgs = true;
+		}
 	}
 
 invalidargs:
 	if (invalidArgs || wantHelp)
 	{
-		wcout << "Arguments:\n"
-			<< "\t[-c country] (ISO3166-1 2 two letter country code)\n"
-			<< "\t-d directory\n"
-			<< "\t-o output filename (.meta4)\n"
-			<< "\t-u base URL\n"
-			<< "\t-v (want verbose)" << endl;
+		if (invalidArgs)
+			wcout << L"\n";
+
+		wcout << L"Arguments:\n"
+			<< L"\t[-c country] (ISO3166-1 2 two letter country code)\n"
+			<< L"\t-d directory\n"
+			<< L"\t-h (help)\n"
+			<< L"\t-o output filename (.meta4)\n"
+			<< L"\t-u base URL\n"
+			<< L"\t[-v] (want verbose)" << endl;
 
 		return invalidArgs ? EXIT_FAILURE : EXIT_SUCCESS;
 	}
@@ -390,7 +398,7 @@ invalidargs:
 		pugi::format_default | pugi::format_write_bom | pugi::format_save_file_text,
 		pugi::encoding_utf8))
 	{
-		wcerr << L"Unable to write to file \"" << outFileName << "\"!";
+		wcerr << L"Unable to write to file \"" << outFileName << L"\"!";
 		return EXIT_FAILURE;
 	}
 
