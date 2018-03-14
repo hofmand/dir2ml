@@ -14,8 +14,13 @@ Example usage:
 Arguments:
 
 [**-c** *country*] ([ISO3166-1 alpha-2](https://datahub.io/core/country-list) two letter country code)
+
 **-d** *directory*
+
 **-h** *(help)*
+
 **-o** *output filename (.meta4)*
+
 **-u** *base URL*
+
 **[-v]** *(want verbose)*
