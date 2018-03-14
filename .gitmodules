@@ -7,6 +7,6 @@
 [submodule "TinySHA1"]
 	path = TinySHA1
 	url = https://github.com/mohaps/TinySHA1
-[submodule "PicoSHA2"]
-	path = PicoSHA2
-	url = https://github.com/okdshin/PicoSHA2
+[submodule "fips_sha2"]
+	path = fips_sha2
+	url = https://github.com/ogay/sha2/
