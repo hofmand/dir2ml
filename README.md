@@ -7,7 +7,7 @@ This tool, `mlbuild`, will create a metalink (.meta4) file from a supplied direc
 
 Example usage:
 
-`mlbuilder -d ./MyMirror -u ftp://ftp.example.com -l us -o MyMirror.meta4`
+`mlbuilder -d ./MyMirror -u ftp://ftp.example.com -c us -o MyMirror.meta4`
 
 ---
 

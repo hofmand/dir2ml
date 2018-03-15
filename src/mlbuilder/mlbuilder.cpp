@@ -27,7 +27,7 @@ extern "C" {
 // https://github.com/mohaps/TinySHA1
 #include "TinySHA1/TinySHA1.hpp"
 
-constexpr wchar_t* VERSION_NO = L"0.1.0";
+constexpr wchar_t* VERSION_NO = L"0.2.0";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -75,13 +75,23 @@ typedef unsigned int sha256_data_size;
 typedef unsigned long md5_data_size;
 typedef sha256_data_size max_buf_size; // because sizeof(unsigned int) <= sizeof(unsigned long)
 
+typedef uint_fast16_t process_dir_flags_t;
+
+enum PROCESS_DIR_FLAGS : process_dir_flags_t
+{
+	FLAG_WANT_VERBOSE = 0x0001
+};
+
 void ProcessDir( wstring const& inputBaseDirName,
                  wstring const& inputDirSuffixName,
                  pugi::xml_node& xmlRootNode,
                  std::wstring const& country,
                  std::wstring const& baseURL,
-                 bool wantVerbose )
+                 std::wstring const& currentDate,
+                 process_dir_flags_t flags )
 {
+	bool wantVerbose = ((flags & FLAG_WANT_VERBOSE) != 0);
+
 	wstring inputDirName = inputBaseDirName;
 	if (!inputDirSuffixName.empty())
 		inputDirName += L"/" + inputDirSuffixName;
@@ -116,7 +126,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 			if (fileName != L"." && fileName != L"..")
 			{
 				ProcessDir(inputBaseDirName, filePathRel, xmlRootNode,
-					country, baseURL, wantVerbose);
+					country, baseURL, currentDate, flags);
 			}
 		}
 		else
@@ -149,6 +159,16 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 			// <description>A description of the example file for download.</description>
 			// TODO ?
+
+			// <generator>mlbuilder/0.1.0</generator>
+			xmlFileNode.append_child(L"generator")
+				.append_child(pugi::node_pcdata)
+				.set_value( (std::wstring(L"mlbuild/") + VERSION_NO).c_str());
+
+			// <updated>2010-05-01T12:15:02Z</updated>
+			xmlFileNode.append_child(L"updated")
+				.append_child(pugi::node_pcdata)
+				.set_value(currentDate.c_str());
 
 			// <hash type="md5">05c7d97c0e3a16ced35c2d9e4554f906</hash>
 			// <hash type="sha-1">a97fcf6ba9358f8a6f62beee4421863d3e52b080</hash>
@@ -380,12 +400,31 @@ invalidargs:
 	// <metalink xmlns="urn:ietf:params:xml:ns:metalink">
 	pugi::xml_node xmlRootNode = xmlDoc.append_child(L"metalink");
 	xmlRootNode.append_attribute(L"xmlns")
-		.set_value("urn:ietf:params:xml:ns:metalink");
+		.set_value(L"urn:ietf:params:xml:ns:metalink");
+	xmlRootNode.append_attribute(L"xmlns:nsi")
+		.set_value(L"http://www.w3.org/2001/XMLSchema-instance");
+	xmlRootNode.append_attribute(L"xsi:noNamespaceSchemaLocation")
+		.set_value(L"metalink4.xsd");
+
+	replace(inputDirName.begin(), inputDirName.end(), L'\\', L'/');
+	process_dir_flags_t flags(0);
+	if (wantVerbose)
+		flags |= FLAG_WANT_VERBOSE;
+
+	wstring currentDate;
+	{
+		time_t now;
+		time(&now);
+		wchar_t buf[sizeof L"2011-10-08T07:07:09Z"];
+		struct tm newTime;
+		gmtime_s(&newTime, &now);
+		wcsftime(buf, sizeof buf, L"%FT%TZ", &newTime);
+		currentDate = buf;
+	}
 
 	auto startTick = GetTickCount64();
 
-	replace(inputDirName.begin(), inputDirName.end(), L'\\', L'/');
-	ProcessDir(inputDirName, L"", xmlRootNode, country, baseURL, wantVerbose);
+	ProcessDir(inputDirName, L"", xmlRootNode, country, baseURL, currentDate, flags);
 
 	auto endTick = GetTickCount64();
 	if (wantVerbose)
@@ -395,7 +434,8 @@ invalidargs:
 	}
 
 	if (!xmlDoc.save_file(outFileName.c_str(), PUGIXML_TEXT("\t"),
-		pugi::format_default | pugi::format_write_bom | pugi::format_save_file_text,
+		pugi::format_default | pugi::format_write_bom
+		| pugi::format_save_file_text,
 		pugi::encoding_utf8))
 	{
 		wcerr << L"Unable to write to file \"" << outFileName << L"\"!";
