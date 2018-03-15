@@ -5,11 +5,34 @@ This tool, `mlbuilder`, will create a single metalink file from a supplied direc
 
 Later, when the original storage location of the files goes offline, the `.meta4` file can be used to identify and locate those files by hash on other servers or by P2P, and to reconstruct the original file structures.
 
-Try it. Run `mlbuilder` on your own computer's download directory, open the `.meta4` file it generates, and search on your favorite search engine for some of the hashes. You might have the best luck with MD5 hashes of `.tar.gz` files but as metalinks become more ubiquitous, it will become easier to locate lost files.
+Try it! Run `mlbuilder.exe` on your own computer's download directory, open the `.meta4` file it generates, and search on your favorite search engine for some of the hashes. *You might have the best luck with MD5 hashes of `.tar.gz` files but as metalinks become more ubiquitous, it will become easier to locate other lost files.*
 
 ---
 
-## Usage:
+## Table of Contents
+* [Usage](#usage)
+* [Example Output File](#example-output-file)
+* [Limitations](#limitations)
+* [Future Plans](#future-plans)
+* [Built With](#built-with)
+* [Authors](#authors)
+* [License](#license)
+
+---
+
+## Install
+
+1. Clone this repository:
+
+   `git clone https://github.com/hofmand/metalink-builder.git`
+
+   or use your web browser to download the `.zip` file, then unpack it to the directory of your choice.
+
+2. Compile `metalink-builder\src\metalink-tools.sln`
+
+3. `mlbuilder.exe` will be located in `metalink-builder\src\x64\Release` or `metalink-builder\src\x64\Debug`
+
+## Usage
 
 **`mlbuilder --help`**
 
@@ -21,9 +44,7 @@ Try it. Run `mlbuilder` on your own computer's download directory, open the `.me
 
 `mlbuilder -d ./MyMirror -u ftp://ftp.example.com -c us -o MyMirror.meta4`
 
----
-
-## Required Arguments:
+### Required Arguments:
 
 **`-d`**, **`--directory`** *directory* - The directory path to process
 
@@ -31,7 +52,7 @@ Try it. Run `mlbuilder` on your own computer's download directory, open the `.me
 
 **`-o`**, **`--output`** - Output filename (`.meta4` or `.metalink`)
 
-## Optional Arguments:
+### Optional Arguments:
 
 **`-c`**, **`--country`** *country-code* - [ISO3166-1 alpha-2](https://datahub.io/core/country-list) two letter country code of the server specified by *base-url* above
 
@@ -50,7 +71,6 @@ Try it. Run `mlbuilder` on your own computer's download directory, open the `.me
 **`--no-hash`** - Don't calculate *any* hashes
 
 ## Example Output File
-<a name="example-output-file"></a>
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <metalink xmlns="urn:ietf:params:xml:ns:metalink" xmlns:nsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="metalink4.xsd">
@@ -81,7 +101,7 @@ Try it. Run `mlbuilder` on your own computer's download directory, open the `.me
 ## Future Plans
 * Create `.magnet` links for each file
 * Support multiple `country-code`/`base-url` pairs
-* Deep-inspect archive files?
+* Deep-inspect archive files? (`.zip`, `.iso`, etc.)
 
 ## Built With
 * Microsoft Visual Studio 2015; targeting x64, Unicode
