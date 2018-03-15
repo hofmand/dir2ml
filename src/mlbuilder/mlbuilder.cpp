@@ -27,7 +27,8 @@ extern "C" {
 // https://github.com/mohaps/TinySHA1
 #include "TinySHA1/TinySHA1.hpp"
 
-constexpr wchar_t* VERSION_NO = L"0.2.0";
+constexpr wchar_t* APP_NAME = L"mlbuilder";
+constexpr wchar_t* VERSION_NO = L"0.3.0";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -35,14 +36,31 @@ constexpr wchar_t* VERSION_NO = L"0.2.0";
 //
 //////////////////////////////////////////////////////////////////////////
 //
-// Arguments:
+// Usage:
 //
-// [-c country] (ISO3166-1 2 two letter country code)
-// -d directory
-// -h (help)
-// -o output filename (.meta4)
-// -u base URL
-// [-v] (verbose output)
+// mlbuilder --help
+// mlbuilder --directory path --base-url url --output outfile [--country code] [--verbose]
+// mlbuilder -d directory-path -u base-url -o outfile [-c country-code] [-v]
+//
+// Example usage:
+//
+// mlbuilder -d ./MyMirror -u ftp://ftp.example.com -c us -o MyMirror.meta4
+//
+// Required Arguments:
+//
+// -h, --help - Show this screen
+// -d, --directory directory - The directory path to process
+// -u, --base-url base-url - The URL of the source directory
+// -o, --output - Output filename(.meta4 or .metalink)
+//
+// Optional Arguments:
+//
+// -c, --country country-code - ISO3166-1 alpha-2 two letter country code of the server specified by base-url above
+// -v, --verbose - Verbose output
+// --no-md5 - Don't calculate MD5
+// --no-sha1 - Don't calculate SHA-1
+// --no-sha256 - Don't calculate SHA-256
+// --no-hash - Don't calculate _any_ hashes
 //
 //////////////////////////////////////////////////////////////////////////
 //
@@ -77,9 +95,18 @@ typedef sha256_data_size max_buf_size; // because sizeof(unsigned int) <= sizeof
 
 typedef uint_fast16_t process_dir_flags_t;
 
-enum PROCESS_DIR_FLAGS : process_dir_flags_t
+constexpr process_dir_flags_t FLAG_VERBOSE   = 0x0001;
+constexpr process_dir_flags_t FLAG_NO_MD5    = 0x0002;
+constexpr process_dir_flags_t FLAG_NO_SHA1   = 0x0004;
+constexpr process_dir_flags_t FLAG_NO_SHA256 = 0x0008;
+
+struct ProcessDirContext
 {
-	FLAG_WANT_VERBOSE = 0x0001
+	ProcessDirContext() : numFiles(0), numBytes(0), dirDepth(0) {}
+
+	size_t numFiles;
+	uint_fast64_t numBytes;
+	size_t dirDepth;
 };
 
 void ProcessDir( wstring const& inputBaseDirName,
@@ -88,13 +115,16 @@ void ProcessDir( wstring const& inputBaseDirName,
                  std::wstring const& country,
                  std::wstring const& baseURL,
                  std::wstring const& currentDate,
+                 ProcessDirContext& ctx,
                  process_dir_flags_t flags )
 {
-	bool wantVerbose = ((flags & FLAG_WANT_VERBOSE) != 0);
+	bool wantVerbose = ((flags & FLAG_VERBOSE) != 0);
 
 	wstring inputDirName = inputBaseDirName;
 	if (!inputDirSuffixName.empty())
 		inputDirName += L"/" + inputDirSuffixName;
+
+	++ctx.dirDepth;
 
 	tinydir_dir inputDir;
 	if (0 != tinydir_open_sorted(&inputDir, inputDirName.c_str()))
@@ -104,8 +134,8 @@ void ProcessDir( wstring const& inputBaseDirName,
 		return;
 	}
 
-	if(!wantVerbose)
-		wcout << L"DIR: " << inputDirName << endl;
+	if(wantVerbose)
+		wcout << setw(ctx.dirDepth-1) << setfill(L'|') << L"+" << inputDirName << endl;
 
 	// Reuse the same file buffer to avoid reallocating memory.
 	static std::vector<char> fileBuffer;
@@ -126,11 +156,13 @@ void ProcessDir( wstring const& inputBaseDirName,
 			if (fileName != L"." && fileName != L"..")
 			{
 				ProcessDir(inputBaseDirName, filePathRel, xmlRootNode,
-					country, baseURL, currentDate, flags);
+					country, baseURL, currentDate, ctx, flags);
 			}
 		}
 		else
 		{
+			++ctx.numFiles;
+
 			// <file name="example.ext">
 			wstring filePathAbs;
 			{
@@ -140,7 +172,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 			}
 
 			if (wantVerbose)
-				wcout << L"  " << filePathAbs << endl;
+				wcout << setw(ctx.dirDepth-1) << setfill(L'|') << L" " << file.name << endl;
 
 			pugi::xml_node xmlFileNode = xmlRootNode.append_child(L"file");
 			xmlFileNode.append_attribute(L"name")
@@ -149,9 +181,11 @@ void ProcessDir( wstring const& inputBaseDirName,
 			// <size>14471447</size>
 			ifstream inFile(filePathAbs, ifstream::ate | ifstream::binary);
 			{
+				auto fileSize = inFile.tellg();
 				xmlFileNode.append_child(L"size")
 					.append_child(pugi::node_pcdata)
-					.set_value(to_wstring(inFile.tellg()).c_str());
+					.set_value(to_wstring(fileSize).c_str());
+				ctx.numBytes += fileSize;
 			}
 
 			// <identity>Example</identity>
@@ -191,20 +225,31 @@ void ProcessDir( wstring const& inputBaseDirName,
 						max_buf_size bytesRead = static_cast<max_buf_size>(inFile.gcount());
 						if (bytesRead > 0)
 						{
-							MD5_Update(&ctxMD5, reinterpret_cast<const unsigned char*>(&fileBuffer[0]),
-								bytesRead);
+							if (!(flags & FLAG_NO_MD5))
+							{
+								MD5_Update(&ctxMD5, reinterpret_cast<const unsigned char*>(&fileBuffer[0]),
+									bytesRead);
+							}
 
-							s1.processBytes(&fileBuffer[0], bytesRead);
+							if (!(flags & FLAG_NO_SHA1))
+							{
+								// TinySHA1 is currently the slowest hasher of the three.
+								// TODO: find a faster one!
+								s1.processBytes(&fileBuffer[0], bytesRead);
+							}
 
-							sha256_update(&ctxSHA_256,
-								reinterpret_cast<const unsigned char*>(&fileBuffer[0]),
-								bytesRead);
+							if (!(flags & FLAG_NO_SHA256))
+							{
+								sha256_update(&ctxSHA_256,
+									reinterpret_cast<const unsigned char*>(&fileBuffer[0]),
+									bytesRead);
+							}
 						}
 					}
 				}
 
 				// MD5
-				// SHA-256
+				if (!(flags & FLAG_NO_MD5))
 				{
 					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
 					xmlHashNode.append_attribute(L"type").set_value(L"md5");
@@ -225,6 +270,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 				}
 
 				// SHA-1
+				if (!(flags & FLAG_NO_SHA1))
 				{
 					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
 					xmlHashNode.append_attribute(L"type").set_value(L"sha-1");
@@ -241,6 +287,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 				}
 
 				// SHA-256
+				if (!(flags & FLAG_NO_SHA256))
 				{
 					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
 					xmlHashNode.append_attribute(L"type").set_value(L"sha-256");
@@ -280,6 +327,8 @@ void ProcessDir( wstring const& inputBaseDirName,
 	}
 
 	tinydir_close(&inputDir);
+
+	--ctx.dirDepth;
 }
 
 int wmain( int argc, wchar_t **argv )
@@ -287,66 +336,94 @@ int wmain( int argc, wchar_t **argv )
 	wstring inputDirName, baseURL, country, outFileName;
 
 	bool invalidArgs(false);
-	bool wantHelp(false);
-	bool wantVerbose(false);
+	bool wantHelp(false), wantVerbose(false);
 
-	wcout << L"mlbuilder v" << VERSION_NO << L"\n" << endl;
+	wcout << APP_NAME << L" " << VERSION_NO << L"\n" << endl;
+
+	process_dir_flags_t flags(0);
 
 	for(int a = 1; a < argc; ++a)
 	{
-		if (wcslen(argv[a]) == 2 && argv[a][0] == L'-')
+		bool validArg(false);
+
+		wstring argText = argv[a];
+		if(argText == L"-d" || argText == L"--directory")
 		{
-			switch (argv[a][1])
+			if (a < argc - 1)
 			{
-			case L'd':
-				if (a < argc - 1)
-				{
-					++a;
-					inputDirName = argv[a];
-				}
-				break;
-			case L'u':
-				if (a < argc - 1)
-				{
-					++a;
-					baseURL = argv[a];
-				}
-				break;
-			case L'c':
-				if (a < argc - 1)
-				{
-					++a;
-					country = argv[a];
-				}
-				break;
-			case L'o':
-				if (a < argc - 1)
-				{
-					++a;
-					outFileName = argv[a];
-				}
-				break;
-			case L'h':
-				wantHelp = true;
-				break;
-			case L'v':
-				wantVerbose = true;
-				break;
-			default:
-				wcerr << L"Invalid argument: \"" << argv[a] << L"\""
-					<< endl;
-				invalidArgs = true;
-				goto invalidargs;
+				++a;
+				inputDirName = argv[a];
+				validArg = true;
 			}
 		}
-		else
+		else if (argText == L"-u" || argText == L"--base-url")
 		{
-			wcerr << L"Invalid argument: \"" << argv[a] << L"\"" << endl;
+			if (a < argc - 1)
+			{
+				++a;
+				baseURL = argv[a];
+				validArg = true;
+			}
+		}
+		else if (argText == L"-c" || argText == L"--country")
+		{
+			if (a < argc - 1)
+			{
+				++a;
+				country = argv[a];
+				validArg = true;
+			}
+		}
+		else if (argText == L"-o" || argText == L"--output")
+		{
+			if (a < argc - 1)
+			{
+				++a;
+				outFileName = argv[a];
+				validArg = true;
+			}
+		}
+		else if (argText == L"-h" || argText == L"--help")
+		{
+			wantHelp = true;
+			validArg = true;
+		}
+		else if (argText == L"-v" || argText == L"--verbose")
+		{
+			wantVerbose = true;
+			flags |= FLAG_VERBOSE;
+			validArg = true;
+		}
+		else if (argText == L"--no-md5")
+		{
+			flags |= FLAG_NO_MD5;
+			validArg = true;
+		}
+		else if (argText == L"--no-sha1")
+		{
+			flags |= FLAG_NO_SHA1;
+			validArg = true;
+		}
+		else if (argText == L"--no-sha256")
+		{
+			flags |= FLAG_NO_SHA256;
+			validArg = true;
+		}
+		else if (argText == L"--no-hash")
+		{
+			flags |= FLAG_NO_MD5 | FLAG_NO_SHA1 | FLAG_NO_SHA256;
+			validArg = true;
+		}
+
+		if (!validArg)
+		{
+			wcerr << L"Invalid argument: \"" << argv[a] << L"\""
+				<< endl;
 			invalidArgs = true;
 		}
 	}
 
-	if (!wantHelp)
+	if (!wantHelp && !invalidArgs)
 	{
 		if (inputDirName.empty())
 		{
@@ -373,19 +450,36 @@ int wmain( int argc, wchar_t **argv )
 		}
 	}
 
-invalidargs:
 	if (invalidArgs || wantHelp)
 	{
 		if (invalidArgs)
 			wcout << L"\n";
 
-		wcout << L"Arguments:\n"
-			<< L"\t[-c country] (ISO3166-1 2 two letter country code)\n"
-			<< L"\t-d directory\n"
-			<< L"\t-h (help)\n"
-			<< L"\t-o output filename (.meta4)\n"
-			<< L"\t-u base URL\n"
-			<< L"\t[-v] (want verbose)" << endl;
+		wcout << L"Usage:\n"
+			<< L"\n"
+			<< L" mlbuilder --help\n"
+			<< L" mlbuilder --directory path --base-url url --output outfile [--country code] [--verbose]\n"
+			<< L" mlbuilder -d directory-path -u base-url -o outfile [-c country-code] [-v]\n"
+			<< L"\n"
+			<< L"Example usage:\n"
+			<< L"\n"
+			<< L" mlbuilder -d ./MyMirror -u ftp://ftp.example.com -c us -o MyMirror.meta4\n"
+			<< L"\n"
+			<< L"Required Arguments:\n"
+			<< L"\n"
+			<< L" -h, --help - Show this screen\n"
+			<< L" -d, --directory directory - The directory path to process\n"
+			<< L" -u, --base-url base-url - The URL of the source directory\n"
+			<< L" -o, --output - Output filename(.meta4 or .metalink)\n"
+			<< L"\n"
+			<< L"Optional Arguments:\n"
+			<< L"\n"
+			<< L" -c, --country country-code - ISO3166-1 alpha-2 two letter country code of the server specified by base-url above\n"
+			<< L" -v, --verbose - Verbose output\n"
+			<< L" --no-md5 - Don't calculate MD5\n"
+			<< L" --no-sha1 - Don't calculate SHA-1\n"
+			<< L" --no-sha256 - Don't calculate SHA-256\n"
+			<< L" --no-hash - Don't calculate _any_ hashes" << endl;
 
 		return invalidArgs ? EXIT_FAILURE : EXIT_SUCCESS;
 	}
@@ -407,9 +501,6 @@ invalidargs:
 		.set_value(L"metalink4.xsd");
 
 	replace(inputDirName.begin(), inputDirName.end(), L'\\', L'/');
-	process_dir_flags_t flags(0);
-	if (wantVerbose)
-		flags |= FLAG_WANT_VERBOSE;
 
 	wstring currentDate;
 	{
@@ -424,13 +515,18 @@ invalidargs:
 
 	auto startTick = GetTickCount64();
 
-	ProcessDir(inputDirName, L"", xmlRootNode, country, baseURL, currentDate, flags);
+	ProcessDirContext ctx;
+	ProcessDir(inputDirName, L"", xmlRootNode, country, baseURL, currentDate, ctx, flags);
 
 	auto endTick = GetTickCount64();
 	if (wantVerbose)
 	{
-		wcout << L"Metalinks builder completed in "
-			<< ((endTick - startTick) / 1000.) << L" seconds." << endl;
+		double numSeconds = (endTick - startTick) / 1000.;
+		double Mbps = ((ctx.numBytes / 1e6) * 8) / numSeconds;
+		wcout << L"\n" << APP_NAME << L" processed " << ctx.numBytes << L" bytes"
+			<< L" in " << ctx.numFiles << L" files"
+			<< L" in " << numSeconds << L" seconds"
+			<< L" (" << Mbps << L" Mbps)." << endl;
 	}
 
 	if (!xmlDoc.save_file(outFileName.c_str(), PUGIXML_TEXT("\t"),
