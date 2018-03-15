@@ -1,7 +1,11 @@
 # metalink-builder
-A tool to create metalink ([RFC5854](https://tools.ietf.org/html/rfc5854)) files (`*.meta4`/`*.metalink`) from a directory structure.
+A tool to create metalink ([RFC5854](https://tools.ietf.org/html/rfc5854)) files (`.meta4`/`.metalink`) from a directory structure on local storage.
 
-This tool, `mlbuilder`, will create a single metalink file from a supplied directory and base URL. The metalink file is an XML format so it can be rendered in a variety of ways using ordinary tools such as XML transformation utilities operating on XML stylesheets (`.xslt`).
+This tool, `mlbuilder`, will create a single metalink file from a supplied directory and base URL, with one `file` record per file. The metalink file is an XML format so it can be rendered in a variety of ways using ordinary tools such as XML transformation utilities operating on XML stylesheets (`.xslt`). See an [example](#example-output-file) of this file format below.
+
+Later, when the original storage location of the files goes offline, the `.meta4` file can be used to identify and locate those files by hash on other servers or by P2P, and to reconstruct the original file structures.
+
+Try it. Run `mlbuilder` on your own computer's download directory, open the `.meta4` file it generates, and search on your favorite search engine for some of the hashes. You might have the best luck with MD5 hashes of `.tar.gz` files but as metalinks become more ubiquitous, it will become easier to locate lost files.
 
 ---
 
@@ -46,7 +50,8 @@ This tool, `mlbuilder`, will create a single metalink file from a supplied direc
 **`--no-hash`** - Don't calculate *any* hashes
 
 ## Example Output File
-```
+<a name="example-output-file"></a>
+```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <metalink xmlns="urn:ietf:params:xml:ns:metalink" xmlns:nsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="metalink4.xsd">
   <file name="example.ext">
@@ -66,15 +71,20 @@ This tool, `mlbuilder`, will create a single metalink file from a supplied direc
 </metalink>
 ```
 
-## Limitations ##
+## Limitations
 * Windows only but the code uses only standard C/C++ (no MFC/.NET, etc.) so compiling for other operating systems should not be an issue.
-* Single threaded so `mlbuilder` is CPU-bound when the storage device is sufficiently fast.
-* If you're processing a directory with millions of files, you may run out of memory because the XML file isn't written until the very end. If you run into this problem, please  [open an issue](https://github.com/hofmand/metalink-builder/issues).
+* Single threaded so `mlbuilder` is CPU-bound, especially when the storage device is fast.
+* `mlbuilder` may run out of memory when processing a directory containing millions of files because the XML file isn't written until the very end. If you run into this problem, please  [open an issue](https://github.com/hofmand/metalink-builder/issues).
 * Only one *base-url* can be specified.
 * Only MD5, SHA-1, and SHA-256 hashes are currently supported.
 
-## Built With ##
-* Microsoft Visual Studio 2015
+## Future Plans
+* Create `.magnet` links for each file
+* Support multiple `country-code`/`base-url` pairs
+* Deep-inspect archive files?
+
+## Built With
+* Microsoft Visual Studio 2015; targeting x64, Unicode
 
 ## Authors
 Derek Hofmann
