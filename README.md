@@ -46,7 +46,7 @@ This tool, `mlbuilder`, will create a single metalink file from a supplied direc
 ## Limitations ##
 * Windows only but using only standard C/C++ (no MFC/.NET, etc.) so compiling for other operating systems shouldn't be an issue.
 * Single threaded so `mlbuilder` is CPU-bound when the storage device is sufficiently fast.
-* If you're processing a directory with millions of files, you may run out of memory because the XML file isn't written until the very end. If you run into this problem, please  [open an issue](issues).
+* If you're processing a directory with millions of files, you may run out of memory because the XML file isn't written until the very end. If you run into this problem, please  [open an issue](https://github.com/hofmand/metalink-builder/issues).
 * Only one *base-url* can be specified.
 * Only MD5, SHA-1, and SHA-256 hashes are currently supported.
 
