@@ -28,7 +28,7 @@ extern "C" {
 #include "TinySHA1/TinySHA1.hpp"
 
 constexpr wchar_t* APP_NAME = L"mlbuilder";
-constexpr wchar_t* VERSION_NO = L"0.3.0";
+constexpr wchar_t* VERSION_NO = L"0.3.1";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -48,7 +48,6 @@ constexpr wchar_t* VERSION_NO = L"0.3.0";
 //
 // Required Arguments:
 //
-// -h, --help - Show this screen
 // -d, --directory directory - The directory path to process
 // -u, --base-url base-url - The URL of the source directory
 // -o, --output - Output filename(.meta4 or .metalink)
@@ -56,6 +55,8 @@ constexpr wchar_t* VERSION_NO = L"0.3.0";
 // Optional Arguments:
 //
 // -c, --country country-code - ISO3166-1 alpha-2 two letter country code of the server specified by base-url above
+// -h, --help - Show this screen
+// -s, --show-statistics - Show statistics at the end of processing
 // -v, --verbose - Verbose output
 // --no-md5 - Don't calculate MD5
 // --no-sha1 - Don't calculate SHA-1
@@ -99,6 +100,8 @@ constexpr process_dir_flags_t FLAG_VERBOSE   = 0x0001;
 constexpr process_dir_flags_t FLAG_NO_MD5    = 0x0002;
 constexpr process_dir_flags_t FLAG_NO_SHA1   = 0x0004;
 constexpr process_dir_flags_t FLAG_NO_SHA256 = 0x0008;
+
+constexpr process_dir_flags_t FLAG_NO_HASHES = FLAG_NO_MD5 | FLAG_NO_SHA1 | FLAG_NO_SHA256;
 
 struct ProcessDirContext
 {
@@ -207,6 +210,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 			// <hash type="md5">05c7d97c0e3a16ced35c2d9e4554f906</hash>
 			// <hash type="sha-1">a97fcf6ba9358f8a6f62beee4421863d3e52b080</hash>
 			// <hash type="sha-256">f0ad929cd259957e160ea442eb80986b5f01...</hash>
+			if ( (flags & FLAG_NO_HASHES) != FLAG_NO_HASHES )
 			{
 				MD5_CTX ctxMD5;
 				MD5_Init(&ctxMD5);
@@ -336,7 +340,7 @@ int wmain( int argc, wchar_t **argv )
 	wstring inputDirName, baseURL, country, outFileName;
 
 	bool invalidArgs(false);
-	bool wantHelp(false), wantVerbose(false);
+	bool wantHelp(false), wantStatistics(false), wantVerbose(false);
 
 	wcout << APP_NAME << L" " << VERSION_NO << L"\n" << endl;
 
@@ -365,15 +369,6 @@ int wmain( int argc, wchar_t **argv )
 				validArg = true;
 			}
 		}
-		else if (argText == L"-c" || argText == L"--country")
-		{
-			if (a < argc - 1)
-			{
-				++a;
-				country = argv[a];
-				validArg = true;
-			}
-		}
 		else if (argText == L"-o" || argText == L"--output")
 		{
 			if (a < argc - 1)
@@ -383,9 +378,23 @@ int wmain( int argc, wchar_t **argv )
 				validArg = true;
 			}
 		}
+		else if (argText == L"-c" || argText == L"--country")
+		{
+			if (a < argc - 1)
+			{
+				++a;
+				country = argv[a];
+				validArg = true;
+			}
+		}
 		else if (argText == L"-h" || argText == L"--help")
 		{
 			wantHelp = true;
+			validArg = true;
+		}
+		else if (argText == L"-s" || argText == L"--show-statistics")
+		{
+			wantStatistics = true;
 			validArg = true;
 		}
 		else if (argText == L"-v" || argText == L"--verbose")
@@ -411,7 +420,7 @@ int wmain( int argc, wchar_t **argv )
 		}
 		else if (argText == L"--no-hash")
 		{
-			flags |= FLAG_NO_MD5 | FLAG_NO_SHA1 | FLAG_NO_SHA256;
+			flags |= FLAG_NO_HASHES;
 			validArg = true;
 		}
 
@@ -467,7 +476,6 @@ int wmain( int argc, wchar_t **argv )
 			<< L"\n"
 			<< L"Required Arguments:\n"
 			<< L"\n"
-			<< L" -h, --help - Show this screen\n"
 			<< L" -d, --directory directory - The directory path to process\n"
 			<< L" -u, --base-url base-url - The URL of the source directory\n"
 			<< L" -o, --output - Output filename(.meta4 or .metalink)\n"
@@ -475,6 +483,8 @@ int wmain( int argc, wchar_t **argv )
 			<< L"Optional Arguments:\n"
 			<< L"\n"
 			<< L" -c, --country country-code - ISO3166-1 alpha-2 two letter country code of the server specified by base-url above\n"
+			<< L" -h, --help - Show this screen\n"
+			<< L" -s, --show-statistics - Show statistics at the end of processing\n"
 			<< L" -v, --verbose - Verbose output\n"
 			<< L" --no-md5 - Don't calculate MD5\n"
 			<< L" --no-sha1 - Don't calculate SHA-1\n"
@@ -519,7 +529,7 @@ int wmain( int argc, wchar_t **argv )
 	ProcessDir(inputDirName, L"", xmlRootNode, country, baseURL, currentDate, ctx, flags);
 
 	auto endTick = GetTickCount64();
-	if (wantVerbose)
+	if(wantStatistics)
 	{
 		double numSeconds = (endTick - startTick) / 1000.;
 		double Mbps = ((ctx.numBytes / 1e6) * 8) / numSeconds;
