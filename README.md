@@ -45,6 +45,27 @@ This tool, `mlbuilder`, will create a single metalink file from a supplied direc
 
 **`--no-hash`** - Don't calculate *any* hashes
 
+## Example Output File
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<metalink xmlns="urn:ietf:params:xml:ns:metalink" xmlns:nsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="metalink4.xsd">
+  <file name="example.ext">
+    <size>14471447</size>
+    <generator>mlbuilder/0.1.0</generator>
+    <updated>2010-05-01T12:15:02Z</updated>
+    <hash type="sha-256">17bfc4a6058d2d7d82db859c8b0528c6ab48d832fed620ed49fb3385dbf1684d</hash>
+    <url location="us">ftp://ftp.example.com/example.ext</url>
+  </file>
+  <file name="subdir/example2.ext">
+    <size>14471447</size>
+    <generator>mlbuilder/0.1.0</generator>
+    <updated>2010-05-01T12:15:02Z</updated>
+    <hash type="sha-256">f44bcce2a9c2aa3f73ddc853ad98f87cd8e7cee5b5c18719ebb220da3fd4dbc9</hash>
+    <url location="us">ftp://ftp.example.com/subdir/example2.ext</url>
+  </file>
+</metalink>
+```
+
 ## Limitations ##
 * Windows only but the code uses only standard C/C++ (no MFC/.NET, etc.) so compiling for other operating systems should not be an issue.
 * Single threaded so `mlbuilder` is CPU-bound when the storage device is sufficiently fast.

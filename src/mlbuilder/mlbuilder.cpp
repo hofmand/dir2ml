@@ -74,17 +74,22 @@ constexpr wchar_t* VERSION_NO = L"0.3.1";
 // Example output file:
 //
 // <?xml version="1.0" encoding="UTF-8"?>
-// <metalink xmlns="urn:ietf:params:xml:ns:metalink">
-//  <file name="example.ext">
-//    <size>14471447</size>
-//    <identity>Example</identity>
-//    <description>A description of the example file for download.</description>
-//    <hash type="sha-256">f0ad929cd259957e160ea442eb80986b5f01...</hash>
-//    <url location="us">ftp://ftp.example.com/example.ext</url>
-//    <url>http://example.com/example.ext</url>
-//    <metaurl mediatype="torrent">http://example.com/example.ext.torrent</metaurl>
+// <metalink xmlns="urn:ietf:params:xml:ns:metalink" xmlns:nsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="metalink4.xsd">
+//   <file name="example.ext">
+//     <size>14471447</size>
+//     <generator>mlbuilder/0.1.0</generator>
+//     <updated>2010-05-01T12:15:02Z</updated>
+//     <hash type="sha-256">17bfc4a6058d2d7d82db859c8b0528c6ab48d832fed620ed49fb3385dbf1684d</hash>
+//     <url location="us">ftp://ftp.example.com/example.ext</url>
 //	 </file>
-//	</metalink>
+//   <file name="subdir/example2.ext">
+//     <size>14471447</size>
+//     <generator>mlbuilder/0.1.0</generator>
+//     <updated>2010-05-01T12:15:02Z</updated>
+//     <hash type="sha-256">f44bcce2a9c2aa3f73ddc853ad98f87cd8e7cee5b5c18719ebb220da3fd4dbc9</hash>
+//     <url location="us">ftp://ftp.example.com/subdir/example2.ext</url>
+//	 </file>
+// </metalink>
 //
 //////////////////////////////////////////////////////////////////////////
 
@@ -190,12 +195,6 @@ void ProcessDir( wstring const& inputBaseDirName,
 					.set_value(to_wstring(fileSize).c_str());
 				ctx.numBytes += fileSize;
 			}
-
-			// <identity>Example</identity>
-			// TODO ?
-
-			// <description>A description of the example file for download.</description>
-			// TODO ?
 
 			// <generator>mlbuilder/0.1.0</generator>
 			xmlFileNode.append_child(L"generator")
