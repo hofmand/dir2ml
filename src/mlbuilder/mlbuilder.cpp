@@ -28,7 +28,7 @@ extern "C" {
 #include "TinySHA1/TinySHA1.hpp"
 
 constexpr wchar_t* APP_NAME = L"mlbuilder";
-constexpr wchar_t* VERSION_NO = L"0.3.1";
+constexpr wchar_t* VERSION_NO = L"0.3.2";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -62,6 +62,9 @@ constexpr wchar_t* VERSION_NO = L"0.3.1";
 // --no-sha1 - Don't calculate SHA-1
 // --no-sha256 - Don't calculate SHA-256
 // --no-hash - Don't calculate _any_ hashes
+// --sparse-output - combines --no-generator and --no-date to simplify diffs
+// --no-generator - Don't output <generator>..</generator>
+// --no-date - Don't output <updated>..</updated>
 //
 //////////////////////////////////////////////////////////////////////////
 //
@@ -101,12 +104,17 @@ typedef sha256_data_size max_buf_size; // because sizeof(unsigned int) <= sizeof
 
 typedef uint_fast16_t process_dir_flags_t;
 
-constexpr process_dir_flags_t FLAG_VERBOSE   = 0x0001;
-constexpr process_dir_flags_t FLAG_NO_MD5    = 0x0002;
-constexpr process_dir_flags_t FLAG_NO_SHA1   = 0x0004;
-constexpr process_dir_flags_t FLAG_NO_SHA256 = 0x0008;
+constexpr process_dir_flags_t FLAG_VERBOSE      = 0x0001;
+constexpr process_dir_flags_t FLAG_NO_MD5       = 0x0002;
+constexpr process_dir_flags_t FLAG_NO_SHA1      = 0x0004;
+constexpr process_dir_flags_t FLAG_NO_SHA256    = 0x0008;
+constexpr process_dir_flags_t FLAG_NO_GENERATOR = 0x0010;
+constexpr process_dir_flags_t FLAG_NO_DATE      = 0x0020;
 
 constexpr process_dir_flags_t FLAG_NO_HASHES = FLAG_NO_MD5 | FLAG_NO_SHA1 | FLAG_NO_SHA256;
+constexpr process_dir_flags_t FLAG_SPARSE_OUTPUT = FLAG_NO_GENERATOR | FLAG_NO_DATE;
+
+constexpr size_t PROGRESS_MARKER_BYTES = 1000000; // 1MB (not MiB)
 
 struct ProcessDirContext
 {
@@ -149,6 +157,8 @@ void ProcessDir( wstring const& inputBaseDirName,
 	static std::vector<char> fileBuffer;
 	constexpr max_buf_size bufferSize = 8192;
 
+	uint_fast64_t oldNumBytes = 0;
+
 	for (int i = 0; i < inputDir.n_files; i++)
 	{
 		tinydir_file file;
@@ -180,31 +190,38 @@ void ProcessDir( wstring const& inputBaseDirName,
 			}
 
 			if (wantVerbose)
-				wcout << setw(ctx.dirDepth-1) << setfill(L'|') << L" " << file.name << endl;
+				wcout << setw(ctx.dirDepth-1) << setfill(L'|') << L" " << file.name;
 
 			pugi::xml_node xmlFileNode = xmlRootNode.append_child(L"file");
 			xmlFileNode.append_attribute(L"name")
 				.set_value(filePathRel.c_str());
 
 			// <size>14471447</size>
+			size_t fileSize;
 			ifstream inFile(filePathAbs, ifstream::ate | ifstream::binary);
 			{
-				auto fileSize = inFile.tellg();
+				fileSize = inFile.tellg();
 				xmlFileNode.append_child(L"size")
 					.append_child(pugi::node_pcdata)
 					.set_value(to_wstring(fileSize).c_str());
 				ctx.numBytes += fileSize;
 			}
 
-			// <generator>mlbuilder/0.1.0</generator>
-			xmlFileNode.append_child(L"generator")
-				.append_child(pugi::node_pcdata)
-				.set_value( (std::wstring(L"mlbuild/") + VERSION_NO).c_str());
+			if (!(flags & FLAG_NO_GENERATOR))
+			{
+				// <generator>mlbuilder/0.1.0</generator>
+				xmlFileNode.append_child(L"generator")
+					.append_child(pugi::node_pcdata)
+					.set_value((std::wstring(L"mlbuild/") + VERSION_NO).c_str());
+			}
 
-			// <updated>2010-05-01T12:15:02Z</updated>
-			xmlFileNode.append_child(L"updated")
-				.append_child(pugi::node_pcdata)
-				.set_value(currentDate.c_str());
+			if (!(flags & FLAG_NO_DATE))
+			{
+				// <updated>2010-05-01T12:15:02Z</updated>
+				xmlFileNode.append_child(L"updated")
+					.append_child(pugi::node_pcdata)
+					.set_value(currentDate.c_str());
+			}
 
 			// <hash type="md5">05c7d97c0e3a16ced35c2d9e4554f906</hash>
 			// <hash type="sha-1">a97fcf6ba9358f8a6f62beee4421863d3e52b080</hash>
@@ -247,9 +264,16 @@ void ProcessDir( wstring const& inputBaseDirName,
 									reinterpret_cast<const unsigned char*>(&fileBuffer[0]),
 									bytesRead);
 							}
-						}
-					}
-				}
+
+							// Every 1MB let's output a '.' just to prove we're still alive
+							auto numTicks = ((oldNumBytes + bytesRead) / PROGRESS_MARKER_BYTES) - (oldNumBytes / PROGRESS_MARKER_BYTES);
+							if(numTicks != 0)
+								wcout << wstring(numTicks, L'.');
+						} // end if (bytesRead > 0)
+
+						oldNumBytes += bytesRead;
+					} // end while (!inFile.eof())
+				} // end scope
 
 				// MD5
 				if (!(flags & FLAG_NO_MD5))
@@ -270,7 +294,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 					xmlHashNode.append_child(pugi::node_pcdata)
 						.set_value(buf.str().c_str());
-				}
+				} // end MD5
 
 				// SHA-1
 				if (!(flags & FLAG_NO_SHA1))
@@ -287,7 +311,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 					}
 					xmlHashNode.append_child(pugi::node_pcdata)
 						.set_value(buf.str().c_str());
-				}
+				} // end SHA-1
 
 				// SHA-256
 				if (!(flags & FLAG_NO_SHA256))
@@ -306,8 +330,10 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 					xmlHashNode.append_child(pugi::node_pcdata)
 						.set_value(buf.str().c_str());
-				}
-			}
+				} // end SHA-256
+
+			} // end if any hashes enabled
+
 			// <url location="us">ftp://ftp.example.com/example.ext</url>
 			{
 				pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
@@ -323,11 +349,14 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 				xmlUrlNode.append_child(pugi::node_pcdata)
 					.set_value(buf.str().c_str());
-			}
-		}
+			} // end <url>..</url>
+
+			if(wantVerbose)
+				wcout << endl;
+		} // end file
 
 		tinydir_next(&inputDir);
-	}
+	} // end files in this directory
 
 	tinydir_close(&inputDir);
 
@@ -422,6 +451,21 @@ int wmain( int argc, wchar_t **argv )
 			flags |= FLAG_NO_HASHES;
 			validArg = true;
 		}
+		else if (argText == L"--sparse-output")
+		{
+			flags |= FLAG_SPARSE_OUTPUT;
+			validArg = true;
+		}
+		else if (argText == L"--no-generator")
+		{
+			flags |= FLAG_NO_GENERATOR;
+			validArg = true;
+		}
+		else if (argText == L"--no-date")
+		{
+			flags |= FLAG_NO_DATE;
+			validArg = true;
+		}
 
 		if (!validArg)
 		{
@@ -488,7 +532,10 @@ int wmain( int argc, wchar_t **argv )
 			<< L" --no-md5 - Don't calculate MD5\n"
 			<< L" --no-sha1 - Don't calculate SHA-1\n"
 			<< L" --no-sha256 - Don't calculate SHA-256\n"
-			<< L" --no-hash - Don't calculate _any_ hashes" << endl;
+			<< L" --no-hash - Don't calculate _any_ hashes\n"
+			<< L" --sparse-output - combines --no-generator and --no-date to simplify diffs\n"
+			<< L" --no-generator - Don't output <generator>..</generator>\n"
+			<< L" --no-date - Don't output <updated>..</updated>" << endl;
 
 		return invalidArgs ? EXIT_FAILURE : EXIT_SUCCESS;
 	}
