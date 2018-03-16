@@ -30,7 +30,7 @@ extern "C" {
 #include "TinySHA1/TinySHA1.hpp"
 
 constexpr wchar_t* APP_NAME = L"mlbuilder";
-constexpr wchar_t* VERSION_NO = L"0.3.4";
+constexpr wchar_t* VERSION_NO = L"0.3.5";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -472,8 +472,6 @@ int wmain( int argc, wchar_t **argv )
 			wcerr << L"Missing input directory!" << endl;
 			invalidArgs = true;
 		}
-		else
-			replace(inputDirName.begin(), inputDirName.end(), L'\\', L'/');
 
 		// Base URL
 		bool baseUrlIsLocalPath(false);
@@ -494,12 +492,27 @@ int wmain( int argc, wchar_t **argv )
 		
 		if (baseUrlIsLocalPath)
 		{
-			// Example: file:///c:/WINDOWS/clock.avi
+			// RFC1738 says, "A file URL takes the form: file://<host>/<path>"
+
+			// Input:  //server/share/file.ext
+			// Output: file://server/share/file.ext
+			//
+			// Input:  \\server\share\file.ext
+			// Output: file://server/share/file.ext
+			//
+			// Input:  C:\WINDOWS\clock.avi
+			// Output: file:///c:/WINDOWS/clock.avi
+			//
+			// Input:  file:///c:/WINDOWS/clock.avi
+			// Output: file:///c:/WINDOWS/clock.avi
+
+			// Append missing trailing "/" so fs::canonical() doesn't think it's a file
+			if (baseURL.back() != L'/' && baseURL.back() != L'\\' )
+				baseURL += L"/"; 
+
+			// Get the full path of base-url
 			error_code ec;
-			if (baseURL.back() != L'/')
-				baseURL += L"/";
-			baseURL = fs::path(L"file:///").append(fs::canonical(baseURL, ec));
-			baseURL[8] = tolower(baseURL[8]); // file:///C:/ -> file:///c:/
+			fs::path canonicalPath = fs::canonical(baseURL, ec);
 			if (ec)
 			{
 				wcerr << L"Can't get canonical path from \"" << inputDirName
@@ -507,6 +520,19 @@ int wmain( int argc, wchar_t **argv )
 				cerr << ec.message() << endl;
 				return EXIT_FAILURE;
 			}
+
+			// Prepend 'file://'
+			wstring canonicalName = canonicalPath;
+			{
+				// root-name can be "C:" or "//myserver"
+				wstring rootName = canonicalPath.root_name().wstring();
+				if (rootName.size() == 2 && rootName[1] == L':')
+				{
+					canonicalName[0] = tolower(canonicalName[0]);
+					canonicalName.insert(0, L"///");
+				}
+			}
+			baseURL = fs::path(L"file:").append(canonicalName);
 		}
 		replace(baseURL.begin(), baseURL.end(), L'\\', L'/');
 
