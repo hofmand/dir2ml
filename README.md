@@ -102,8 +102,8 @@ Another use-case is to use `mlbuilder` to periodically [fingerprint](https://www
 ```
 
 ## Limitations
-* **The SHA-1 and SHA-256 implementations do not correctly process large files.**
-* Windows only but the code uses only standard C/C++ (no MFC/.NET, etc.) so compiling for other operating systems should not be an issue.
+* **The SHA-1 and SHA-256 implementations do not correctly process large files >2GB.** I am working on this.
+* Windows only but the code uses mostly standard C/C++ (no MFC/.NET, etc.) so compiling for other operating systems should not be an issue.
 * Single threaded so `mlbuilder` is CPU-bound, especially when the storage device is fast.
 * `mlbuilder.exe` may run out of memory when processing a directory containing millions of files because the XML file isn't written until the very end. If you run into this problem, please  [open an issue](https://github.com/hofmand/metalink-builder/issues).
 * Only one *base-url* can be specified.
