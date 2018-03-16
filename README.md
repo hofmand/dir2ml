@@ -7,7 +7,7 @@ Later, when the original storage location of the files goes offline, the `.meta4
 
 Try it! Run `mlbuilder.exe` on your own computer's download directory, open the `.meta4` file it generates, and search on your favorite search engine for some of the hashes. *You might have the best luck with MD5 hashes of `.tar.gz` files but as metalinks become more ubiquitous, it will become easier to locate other lost files.*
 
-Another use-case is to use `mlbuilder` to periodically [fingerprint](https://www.technologyreview.com/s/402961/fingerprinting-your-files/) your hard drive onto a USB flash drive *(use `--sparse-output` for that purpose unless your diff tool can ignore XML tags, and perhaps also disable all hash algorithms except SHA-256 in order to improve speed)*, then if your hard drive starts to crash or if you're hit by ransomware, you can use any ordinary diff tool to compare two `.meta4` files and easily determine which files have changed and need to be restored from [backup](https://www.backblaze.com/blog/the-3-2-1-backup-strategy/). *You have a backup, right?*
+Another use-case is to use `mlbuilder` to periodically [fingerprint](https://www.technologyreview.com/s/402961/fingerprinting-your-files/) your hard drive onto a USB flash drive *(use `--sparse-output` for that purpose unless your diff tool can ignore XML tags, and perhaps also disable all hash algorithms except SHA-256 in order to improve speed)*, then if your hard drive starts to crash or if you're hit by ransomware, you can use any ordinary diff tool to compare two `.meta4` files and easily determine which files have changed and need to be restored from [backup](https://www.backblaze.com/blog/the-3-2-1-backup-strategy/). (*You have a backup, right?*)
 
 ---
 
@@ -50,7 +50,7 @@ Another use-case is to use `mlbuilder` to periodically [fingerprint](https://www
 
 **`-d`**, **`--directory`** *directory* - The directory path to process
 
-**`-o`**, **`--output`** - Output filename (`.meta4` or `.metalink`)
+**`-o`**, **`--output`** *outfile* - Output filename (`.meta4` or `.metalink`)
 
 ### Optional Arguments:
 
@@ -62,7 +62,9 @@ Another use-case is to use `mlbuilder` to periodically [fingerprint](https://www
 
 **`-s`**, **`--show-statistics`** - Show statistics at the end of processing
 
-**`-u`**, **`--base-url`** *base-url* - The URL of the source directory
+**`-u`**, **`--base-url`** *base-url* - The URL of the source directory. If this is omitted, the directory specified by `--directory` will be used, prepended by `file://`.
+
+   Note: on Windows, backslashes (`\`) in the *base-url* will be replaced by forward slashes (`/`).
 
 **`-v`**, **`--verbose`** - Verbose output
 
@@ -102,8 +104,8 @@ Another use-case is to use `mlbuilder` to periodically [fingerprint](https://www
 ```
 
 ## Limitations
-* **The SHA-1 and SHA-256 implementations do not correctly process large files >2GB.** I am working on this.
-* Windows only but the code uses mostly standard C/C++ (no MFC/.NET, etc.) so compiling for other operating systems should not be an issue.
+* **The SHA-1 and SHA-256 implementations do not correctly process large files >2GB.** I am working on this. Until this is fixed, if `mlbuilder` encounters a large file and either SHA-1 or SHA-256 processing is enabled, `mlbuilder` will fail and `exit(1)` without writing to *outfile*. The MD5 algorithm has no issues with large files.
+* Windows only but the code uses only standard C/C++ (no MFC/.NET, etc.) so compiling for other operating systems should not be an issue.
 * Single threaded so `mlbuilder` is CPU-bound, especially when the storage device is fast.
 * `mlbuilder.exe` may run out of memory when processing a directory containing millions of files because the XML file isn't written until the very end. If you run into this problem, please  [open an issue](https://github.com/hofmand/metalink-builder/issues).
 * Only one *base-url* can be specified.

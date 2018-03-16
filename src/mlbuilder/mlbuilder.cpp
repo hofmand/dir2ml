@@ -4,6 +4,7 @@
 #include "stdafx.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -29,7 +30,7 @@ extern "C" {
 #include "TinySHA1/TinySHA1.hpp"
 
 constexpr wchar_t* APP_NAME = L"mlbuilder";
-constexpr wchar_t* VERSION_NO = L"0.3.3";
+constexpr wchar_t* VERSION_NO = L"0.3.4";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -66,6 +67,12 @@ constexpr wchar_t* VERSION_NO = L"0.3.3";
 //////////////////////////////////////////////////////////////////////////
 
 using namespace std;
+
+#if __cplusplus < 201703L && defined _MSC_VER
+namespace fs = std::experimental::filesystem::v1;
+#else
+namespace fs = std::filesystem;
+#endif
 
 typedef unsigned int sha256_data_size;
 typedef unsigned long md5_data_size;
@@ -459,36 +466,58 @@ int wmain( int argc, wchar_t **argv )
 
 	if (!wantHelp && !invalidArgs)
 	{
+		// Input directory
 		if (inputDirName.empty())
 		{
 			wcerr << L"Missing input directory!" << endl;
 			invalidArgs = true;
 		}
+		else
+			replace(inputDirName.begin(), inputDirName.end(), L'\\', L'/');
 
+		// Base URL
+		bool baseUrlIsLocalPath(false);
 		if (baseURL.empty())
 		{
-#ifdef _WIN32
-			DWORD retVal = GetFullPathNameW(inputDirName.c_str(), 0, nullptr, nullptr);
-			if (retVal == 0)
-			{
-				wcerr << L"Error #" << GetLastError() << L" reading \"" << inputDirName << L"\"!" << endl;
-				exit(0);
-			}
-			wchar_t* buf = new wchar_t[retVal];
-			GetFullPathNameW(inputDirName.c_str(), retVal, buf, nullptr);
-			baseURL = buf;
-			delete[] buf;
-#elif __linux__
-			realpath()
-#endif
+			baseURL = inputDirName;
+			baseUrlIsLocalPath = true;
 		}
+		else
+		{
+			auto i = baseURL.find(L"://"); // e.g. ftp://www.example.com
+			if (i == wstring::npos // couldn't find "://"
+				|| baseURL.substr(0, i).find_first_not_of(L"abcdefghijklmnopqrstuvwxyz", 0) != wstring::npos ) // something before "://" was not a lowercase alpha character
+			{
+				baseUrlIsLocalPath = true;
+			}
+		}
+		
+		if (baseUrlIsLocalPath)
+		{
+			// Example: file:///c:/WINDOWS/clock.avi
+			error_code ec;
+			if (baseURL.back() != L'/')
+				baseURL += L"/";
+			baseURL = fs::path(L"file:///").append(fs::canonical(baseURL, ec));
+			baseURL[8] = tolower(baseURL[8]); // file:///C:/ -> file:///c:/
+			if (ec)
+			{
+				wcerr << L"Can't get canonical path from \"" << inputDirName
+					<< L"\"! ";
+				cerr << ec.message() << endl;
+				return EXIT_FAILURE;
+			}
+		}
+		replace(baseURL.begin(), baseURL.end(), L'\\', L'/');
 
+		// Country code
 		if (!country.empty() && country.size() != 2)
 		{
 			wcerr << "Invalid country code \"" << country << "\"!" << endl;
 			invalidArgs = true;
 		}
 
+		// Output filename
 		if (outFileName.empty())
 		{
 			wcerr << L"Missing output filename!" << endl;
@@ -517,14 +546,15 @@ int wmain( int argc, wchar_t **argv )
 			<< L"Required Arguments:\n"
 			<< L"\n"
 			<< L" -d, --directory directory - The directory path to process\n"
-			<< L" -o, --output - Output filename(.meta4 or .metalink)\n"
+			<< L" -o, --output outfile - Output filename(.meta4 or .metalink)\n"
 			<< L"\n"
 			<< L"Optional Arguments:\n"
 			<< L"\n"
 			<< L" -c, --country country-code - ISO3166-1 alpha-2 two letter country code of the server specified by base-url above\n"
 			<< L" -h, --help - Show this screen\n"
 			<< L" -s, --show-statistics - Show statistics at the end of processing\n"
-			<< L" -u, --base-url base-url - The URL of the source directory\n"
+			<< L" -u, --base-url base-url - The URL of the source directory. If this is omitted, the directory specified by --directory will be used, prepended by file://.\n"
+			<< L"   Note: on Windows, backslashes (\\) in the base-url will be replaced by forward slashes (/).\n"
 			<< L" -v, --verbose - Verbose output\n"
 			<< L" --no-md5 - Don't calculate MD5\n"
 			<< L" --no-sha1 - Don't calculate SHA-1\n"
@@ -552,8 +582,6 @@ int wmain( int argc, wchar_t **argv )
 		.set_value(L"http://www.w3.org/2001/XMLSchema-instance");
 	xmlRootNode.append_attribute(L"xsi:noNamespaceSchemaLocation")
 		.set_value(L"metalink4.xsd");
-
-	replace(inputDirName.begin(), inputDirName.end(), L'\\', L'/');
 
 	wstring currentDate;
 	{
