@@ -1,7 +1,7 @@
 # metalink-builder
 A tool to create metalink ([RFC5854](https://tools.ietf.org/html/rfc5854)) files (`.meta4`/`.metalink`) from a directory structure on local storage, complete with multiple cryptographic hashes.
 
-This tool, `mlbuilder`, will create a single metalink file from a supplied directory and base URL, with one `file` record per file, sorted ASCIIbetically, directories first, depth-first. The metalink file is an XML format so it can be rendered in a variety of ways using ordinary tools such as XML transformation utilities operating on XML stylesheets (`.xslt`). See an [example](#example-output-file) of this file format below.
+This tool, `mlbuilder`, will create a single UTF-8 metalink file from a supplied directory and base URL, with one `file` record per file, sorted [ASCIIbetically](https://en.wiktionary.org/wiki/ASCIIbetical), directories first, depth-first. The metalink file is an XML format so it can be rendered in a variety of ways using ordinary tools such as XML transformation utilities operating on XML stylesheets (`.xslt`). See an [example](#example-output-file) of this file format below.
 
 Later, when the original storage location of the files goes offline, the `.meta4` file can be used to identify and locate those files by hash on other servers or by P2P, and to reconstruct the original file structures.
 
