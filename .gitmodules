@@ -4,9 +4,9 @@
 [submodule "tinydir"]
 	path = tinydir
 	url = https://github.com/cxong/tinydir
-[submodule "TinySHA1"]
-	path = TinySHA1
-	url = https://github.com/mohaps/TinySHA1
 [submodule "fips_sha2"]
 	path = fips_sha2
 	url = https://github.com/ogay/sha2/
+[submodule "crypto-algorithms"]
+	path = crypto-algorithms
+	url = https://github.com/B-Con/crypto-algorithms

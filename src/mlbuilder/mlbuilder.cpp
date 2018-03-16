@@ -12,12 +12,13 @@
 #include <stdlib.h>
 #include <vector>
 
-// https://github.com/ogay/sha2/
-#include "fips_sha2/sha2.h"
+#include "windows.h"
 
-// http://openwall.info/wiki/people/solar/software/public-domain-source-code/md5
+// https://github.com/B-Con/crypto-algorithms
 extern "C" {
-#include "openwall/md5.h"
+#include "crypto-algorithms\sha1.h"
+#include "crypto-algorithms\sha256.h"
+#include "crypto-algorithms\md5.h"
 }
 
 // https://github.com/zeux/pugixml
@@ -26,11 +27,8 @@ extern "C" {
 // https://github.com/cxong/tinydir
 #include "tinydir/tinydir.h"
 
-// https://github.com/mohaps/TinySHA1
-#include "TinySHA1/TinySHA1.hpp"
-
 constexpr wchar_t* APP_NAME = L"mlbuilder";
-constexpr wchar_t* VERSION_NO = L"0.3.5";
+constexpr wchar_t* VERSION_NO = L"0.4.0";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -183,14 +181,6 @@ void ProcessDir( wstring const& inputBaseDirName,
 				ctx.numBytes += fileSize;
 			}
 
-			if (fileSize > 2ull * 1024 * 1024 * 1024
-				&& (flags & (FLAG_SHA1 | FLAG_SHA256)))
-			{
-				wcerr << L"The current SHA1 and SHA256 implementations do not correctly process large files.\n"
-					<< L"Please use the --no-sha1 and --no-sha256 flags." << endl;
-				exit(EXIT_FAILURE);
-			}
-
 			if (!(flags & FLAG_NO_GENERATOR))
 			{
 				// <generator>mlbuilder/0.1.0</generator>
@@ -213,11 +203,12 @@ void ProcessDir( wstring const& inputBaseDirName,
 			if (flags & FLAG_HASHES)
 			{
 				MD5_CTX ctxMD5;
-				MD5_Init(&ctxMD5);
+				md5_init(&ctxMD5);
 
-				sha1::SHA1 s1;
+				SHA1_CTX ctxSHA_1;
+				sha1_init(&ctxSHA_1);
 
-				sha256_ctx ctxSHA_256;
+				SHA256_CTX ctxSHA_256;
 				sha256_init(&ctxSHA_256);
 
 				inFile.seekg(0, ios::beg);
@@ -231,21 +222,21 @@ void ProcessDir( wstring const& inputBaseDirName,
 						{
 							if (flags & FLAG_MD5)
 							{
-								MD5_Update(&ctxMD5, reinterpret_cast<const unsigned char*>(&fileBuffer[0]),
+								md5_update(&ctxMD5, reinterpret_cast<const uint8_t*>(&fileBuffer[0]),
 									bytesRead);
 							}
 
 							if (flags & FLAG_SHA1)
 							{
-								// TinySHA1 is currently the slowest hasher of the three.
-								// TODO: find a faster one!
-								s1.processBytes(&fileBuffer[0], bytesRead);
+								sha1_update(&ctxSHA_1,
+									reinterpret_cast<const uint8_t*>(&fileBuffer[0]),
+									bytesRead);
 							}
 
 							if (flags & FLAG_SHA256)
 							{
 								sha256_update(&ctxSHA_256,
-									reinterpret_cast<const unsigned char*>(&fileBuffer[0]),
+									reinterpret_cast<const uint8_t*>(&fileBuffer[0]),
 									bytesRead);
 							}
 
@@ -265,14 +256,12 @@ void ProcessDir( wstring const& inputBaseDirName,
 					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
 					xmlHashNode.append_attribute(L"type").set_value(L"md5");
 
-#define MD5_DIGEST_SIZE (128/8)
-
 					wostringstream buf;
 					{
-						unsigned char digest[MD5_DIGEST_SIZE];
-						memset(digest, 0, MD5_DIGEST_SIZE);
-						MD5_Final(digest, &ctxMD5);
-						for (size_t i = 0; i < MD5_DIGEST_SIZE; ++i)
+						unsigned char digest[MD5_BLOCK_SIZE];
+						memset(digest, 0, MD5_BLOCK_SIZE);
+						md5_final(&ctxMD5, digest);
+						for (size_t i = 0; i < MD5_BLOCK_SIZE; ++i)
 							buf << hex << setw(2) << setfill(L'0') << digest[i];
 					}
 
@@ -288,10 +277,11 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 					wostringstream buf;
 					{
-						uint32_t digest[5];
-						s1.getDigest(digest);
-						for (size_t i = 0; i < 5; ++i)
-							buf << hex << setw(8) << setfill(L'0') << digest[i];
+						unsigned char digest[SHA1_BLOCK_SIZE];
+						memset(digest, 0, SHA1_BLOCK_SIZE);
+						sha1_final(&ctxSHA_1, digest);
+						for (size_t i = 0; i < SHA1_BLOCK_SIZE; ++i)
+							buf << hex << setw(2) << setfill(L'0') << digest[i];
 					}
 					xmlHashNode.append_child(pugi::node_pcdata)
 						.set_value(buf.str().c_str());
@@ -305,10 +295,10 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 					wostringstream buf;
 					{
-						unsigned char digest[SHA256_DIGEST_SIZE];
-						memset(digest, 0, SHA256_DIGEST_SIZE);
+						unsigned char digest[SHA256_BLOCK_SIZE];
+						memset(digest, 0, SHA256_BLOCK_SIZE);
 						sha256_final(&ctxSHA_256, digest);
-						for (size_t i = 0; i < SHA256_DIGEST_SIZE; ++i)
+						for (size_t i = 0; i < SHA256_BLOCK_SIZE; ++i)
 							buf << hex << setw(2) << setfill(L'0') << digest[i];
 					}
 

@@ -104,12 +104,11 @@ Another use-case is to use `mlbuilder` to periodically [fingerprint](https://www
 ```
 
 ## Limitations
-* **The SHA-1 and SHA-256 implementations do not correctly process large files >2GB.** I am working on this. Until this is fixed, if `mlbuilder` encounters a large file and either SHA-1 or SHA-256 processing is enabled, `mlbuilder` will fail and `exit(1)` without writing to *outfile*. The MD5 algorithm has no issues with large files.
 * Windows only but the code uses only standard C/C++ (no MFC/.NET, etc.) so compiling for other operating systems should not be an issue.
 * Single threaded so `mlbuilder` is CPU-bound, especially when the storage device is fast.
 * `mlbuilder.exe` may run out of memory when processing a directory containing millions of files because the XML file isn't written until the very end. If you run into this problem, please  [open an issue](https://github.com/hofmand/metalink-builder/issues).
 * Only one *base-url* can be specified.
-* Only MD5, SHA-1, and SHA-256 hashes are currently supported.
+* Only MD5, SHA-1, and SHA-256 hashes are currently supported. *(Do we need any others?)*
 
 ## Future Plans
 * Create `.magnet` links for each file

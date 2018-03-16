@@ -30,10 +30,13 @@
     <ClInclude Include="targetver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\fips_sha2\sha2.h">
+    <ClInclude Include="..\..\crypto-algorithms\sha256.h">
       <Filter>Header Files\contrib</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\openwall\md5.h">
+    <ClInclude Include="..\..\crypto-algorithms\sha1.h">
+      <Filter>Header Files\contrib</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\crypto-algorithms\md5.h">
       <Filter>Header Files\contrib</Filter>
     </ClInclude>
   </ItemGroup>
@@ -44,10 +47,13 @@
     <ClCompile Include="mlbuilder.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\fips_sha2\sha2.c">
+    <ClCompile Include="..\..\crypto-algorithms\sha256.c">
       <Filter>Source Files\contrib</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\openwall\md5.c">
+    <ClCompile Include="..\..\crypto-algorithms\sha1.c">
+      <Filter>Source Files\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\crypto-algorithms\md5.c">
       <Filter>Source Files\contrib</Filter>
     </ClCompile>
   </ItemGroup>
