@@ -38,9 +38,9 @@ Another use-case is to use `mlbuilder` to periodically [fingerprint](https://www
 
 **`mlbuilder --help`**
 
-**`mlbuilder --directory`** *path* **`--base-url`** *url* **`--output`** *outfile* [**`--country`** *code*] [**`--verbose`**]
+**`mlbuilder --directory`** *path* [**`--base-url`** *url*] **`--output`** *outfile* [**`--country`** *code*] [**`--verbose`**]
 
-**`mlbuilder -d`** *directory-path* **`-u`** *base-url* **`-o`** *outfile* [**`-c`** *country-code*] [**`-v`**]
+**`mlbuilder -d`** *directory-path* [**`-u`** *base-url*] **`-o`** *outfile* [**`-c`** *country-code*] [**`-v`**]
 
 ### Example usage:
 
@@ -50,8 +50,6 @@ Another use-case is to use `mlbuilder` to periodically [fingerprint](https://www
 
 **`-d`**, **`--directory`** *directory* - The directory path to process
 
-**`-u`**, **`--base-url`** *base-url* - The URL of the source directory
-
 **`-o`**, **`--output`** - Output filename (`.meta4` or `.metalink`)
 
 ### Optional Arguments:
@@ -60,7 +58,11 @@ Another use-case is to use `mlbuilder` to periodically [fingerprint](https://www
 
 **`-h`**, **`--help`** - Show this screen
 
+**`--version`** - Show version information
+
 **`-s`**, **`--show-statistics`** - Show statistics at the end of processing
+
+**`-u`**, **`--base-url`** *base-url* - The URL of the source directory
 
 **`-v`**, **`--verbose`** - Verbose output
 
@@ -100,6 +102,7 @@ Another use-case is to use `mlbuilder` to periodically [fingerprint](https://www
 ```
 
 ## Limitations
+* **The SHA-1 and SHA-256 implementations do not correctly process large files.**
 * Windows only but the code uses only standard C/C++ (no MFC/.NET, etc.) so compiling for other operating systems should not be an issue.
 * Single threaded so `mlbuilder` is CPU-bound, especially when the storage device is fast.
 * `mlbuilder.exe` may run out of memory when processing a directory containing millions of files because the XML file isn't written until the very end. If you run into this problem, please  [open an issue](https://github.com/hofmand/metalink-builder/issues).

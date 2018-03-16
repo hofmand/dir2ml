@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <stdlib.h>
 #include <vector>
 
 // https://github.com/ogay/sha2/
@@ -28,43 +29,11 @@ extern "C" {
 #include "TinySHA1/TinySHA1.hpp"
 
 constexpr wchar_t* APP_NAME = L"mlbuilder";
-constexpr wchar_t* VERSION_NO = L"0.3.2";
+constexpr wchar_t* VERSION_NO = L"0.3.3";
 
 //////////////////////////////////////////////////////////////////////////
 //
 // mlbuilder: read a directory structure and create a metalinks file.
-//
-//////////////////////////////////////////////////////////////////////////
-//
-// Usage:
-//
-// mlbuilder --help
-// mlbuilder --directory path --base-url url --output outfile [--country code] [--verbose]
-// mlbuilder -d directory-path -u base-url -o outfile [-c country-code] [-v]
-//
-// Example usage:
-//
-// mlbuilder -d ./MyMirror -u ftp://ftp.example.com -c us -o MyMirror.meta4
-//
-// Required Arguments:
-//
-// -d, --directory directory - The directory path to process
-// -u, --base-url base-url - The URL of the source directory
-// -o, --output - Output filename(.meta4 or .metalink)
-//
-// Optional Arguments:
-//
-// -c, --country country-code - ISO3166-1 alpha-2 two letter country code of the server specified by base-url above
-// -h, --help - Show this screen
-// -s, --show-statistics - Show statistics at the end of processing
-// -v, --verbose - Verbose output
-// --no-md5 - Don't calculate MD5
-// --no-sha1 - Don't calculate SHA-1
-// --no-sha256 - Don't calculate SHA-256
-// --no-hash - Don't calculate _any_ hashes
-// --sparse-output - combines --no-generator and --no-date to simplify diffs
-// --no-generator - Don't output <generator>..</generator>
-// --no-date - Don't output <updated>..</updated>
 //
 //////////////////////////////////////////////////////////////////////////
 //
@@ -105,13 +74,13 @@ typedef sha256_data_size max_buf_size; // because sizeof(unsigned int) <= sizeof
 typedef uint_fast16_t process_dir_flags_t;
 
 constexpr process_dir_flags_t FLAG_VERBOSE      = 0x0001;
-constexpr process_dir_flags_t FLAG_NO_MD5       = 0x0002;
-constexpr process_dir_flags_t FLAG_NO_SHA1      = 0x0004;
-constexpr process_dir_flags_t FLAG_NO_SHA256    = 0x0008;
+constexpr process_dir_flags_t FLAG_MD5          = 0x0002;
+constexpr process_dir_flags_t FLAG_SHA1         = 0x0004;
+constexpr process_dir_flags_t FLAG_SHA256       = 0x0008;
 constexpr process_dir_flags_t FLAG_NO_GENERATOR = 0x0010;
 constexpr process_dir_flags_t FLAG_NO_DATE      = 0x0020;
 
-constexpr process_dir_flags_t FLAG_NO_HASHES = FLAG_NO_MD5 | FLAG_NO_SHA1 | FLAG_NO_SHA256;
+constexpr process_dir_flags_t FLAG_HASHES = FLAG_MD5 | FLAG_SHA1 | FLAG_SHA256;
 constexpr process_dir_flags_t FLAG_SPARSE_OUTPUT = FLAG_NO_GENERATOR | FLAG_NO_DATE;
 
 constexpr size_t PROGRESS_MARKER_BYTES = 1000000; // 1MB (not MiB)
@@ -207,6 +176,14 @@ void ProcessDir( wstring const& inputBaseDirName,
 				ctx.numBytes += fileSize;
 			}
 
+			if (fileSize > 2ull * 1024 * 1024 * 1024
+				&& (flags & (FLAG_SHA1 | FLAG_SHA256)))
+			{
+				wcerr << L"The current SHA1 and SHA256 implementations do not correctly process large files.\n"
+					<< L"Please use the --no-sha1 and --no-sha256 flags." << endl;
+				exit(EXIT_FAILURE);
+			}
+
 			if (!(flags & FLAG_NO_GENERATOR))
 			{
 				// <generator>mlbuilder/0.1.0</generator>
@@ -226,7 +203,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 			// <hash type="md5">05c7d97c0e3a16ced35c2d9e4554f906</hash>
 			// <hash type="sha-1">a97fcf6ba9358f8a6f62beee4421863d3e52b080</hash>
 			// <hash type="sha-256">f0ad929cd259957e160ea442eb80986b5f01...</hash>
-			if ( (flags & FLAG_NO_HASHES) != FLAG_NO_HASHES )
+			if (flags & FLAG_HASHES)
 			{
 				MD5_CTX ctxMD5;
 				MD5_Init(&ctxMD5);
@@ -245,20 +222,20 @@ void ProcessDir( wstring const& inputBaseDirName,
 						max_buf_size bytesRead = static_cast<max_buf_size>(inFile.gcount());
 						if (bytesRead > 0)
 						{
-							if (!(flags & FLAG_NO_MD5))
+							if (flags & FLAG_MD5)
 							{
 								MD5_Update(&ctxMD5, reinterpret_cast<const unsigned char*>(&fileBuffer[0]),
 									bytesRead);
 							}
 
-							if (!(flags & FLAG_NO_SHA1))
+							if (flags & FLAG_SHA1)
 							{
 								// TinySHA1 is currently the slowest hasher of the three.
 								// TODO: find a faster one!
 								s1.processBytes(&fileBuffer[0], bytesRead);
 							}
 
-							if (!(flags & FLAG_NO_SHA256))
+							if (flags & FLAG_SHA256)
 							{
 								sha256_update(&ctxSHA_256,
 									reinterpret_cast<const unsigned char*>(&fileBuffer[0]),
@@ -276,7 +253,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 				} // end scope
 
 				// MD5
-				if (!(flags & FLAG_NO_MD5))
+				if (flags & FLAG_MD5)
 				{
 					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
 					xmlHashNode.append_attribute(L"type").set_value(L"md5");
@@ -297,7 +274,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 				} // end MD5
 
 				// SHA-1
-				if (!(flags & FLAG_NO_SHA1))
+				if (flags & FLAG_SHA1)
 				{
 					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
 					xmlHashNode.append_attribute(L"type").set_value(L"sha-1");
@@ -314,7 +291,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 				} // end SHA-1
 
 				// SHA-256
-				if (!(flags & FLAG_NO_SHA256))
+				if (flags & FLAG_SHA256)
 				{
 					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
 					xmlHashNode.append_attribute(L"type").set_value(L"sha-256");
@@ -372,7 +349,7 @@ int wmain( int argc, wchar_t **argv )
 
 	wcout << APP_NAME << L" " << VERSION_NO << L"\n" << endl;
 
-	process_dir_flags_t flags(0);
+	process_dir_flags_t flags(FLAG_HASHES);
 
 	for(int a = 1; a < argc; ++a)
 	{
@@ -431,24 +408,29 @@ int wmain( int argc, wchar_t **argv )
 			flags |= FLAG_VERBOSE;
 			validArg = true;
 		}
+		else if (argText == L"--version")
+		{
+			validArg = true;
+			return EXIT_SUCCESS;
+		}
 		else if (argText == L"--no-md5")
 		{
-			flags |= FLAG_NO_MD5;
+			flags &= ~FLAG_MD5;
 			validArg = true;
 		}
 		else if (argText == L"--no-sha1")
 		{
-			flags |= FLAG_NO_SHA1;
+			flags &= ~FLAG_SHA1;
 			validArg = true;
 		}
 		else if (argText == L"--no-sha256")
 		{
-			flags |= FLAG_NO_SHA256;
+			flags &= ~FLAG_SHA256;
 			validArg = true;
 		}
 		else if (argText == L"--no-hash")
 		{
-			flags |= FLAG_NO_HASHES;
+			flags &= ~FLAG_HASHES;
 			validArg = true;
 		}
 		else if (argText == L"--sparse-output")
@@ -485,8 +467,20 @@ int wmain( int argc, wchar_t **argv )
 
 		if (baseURL.empty())
 		{
-			wcerr << L"Missing base URL!" << endl;
-			invalidArgs = true;
+#ifdef _WIN32
+			DWORD retVal = GetFullPathNameW(inputDirName.c_str(), 0, nullptr, nullptr);
+			if (retVal == 0)
+			{
+				wcerr << L"Error #" << GetLastError() << L" reading \"" << inputDirName << L"\"!" << endl;
+				exit(0);
+			}
+			wchar_t* buf = new wchar_t[retVal];
+			GetFullPathNameW(inputDirName.c_str(), retVal, buf, nullptr);
+			baseURL = buf;
+			delete[] buf;
+#elif __linux__
+			realpath()
+#endif
 		}
 
 		if (!country.empty() && country.size() != 2)
@@ -502,15 +496,18 @@ int wmain( int argc, wchar_t **argv )
 		}
 	}
 
-	if (invalidArgs || wantHelp)
+	if (invalidArgs)
 	{
-		if (invalidArgs)
-			wcout << L"\n";
+		wcout << L"\nTry:\t" << APP_NAME << " --help" << endl;
+		return EXIT_FAILURE;
+	}
 
+	if (wantHelp)
+	{
 		wcout << L"Usage:\n"
 			<< L"\n"
 			<< L" mlbuilder --help\n"
-			<< L" mlbuilder --directory path --base-url url --output outfile [--country code] [--verbose]\n"
+			<< L" mlbuilder --directory path [--base-url url] --output outfile [--country code] [--verbose]\n"
 			<< L" mlbuilder -d directory-path -u base-url -o outfile [-c country-code] [-v]\n"
 			<< L"\n"
 			<< L"Example usage:\n"
@@ -520,7 +517,6 @@ int wmain( int argc, wchar_t **argv )
 			<< L"Required Arguments:\n"
 			<< L"\n"
 			<< L" -d, --directory directory - The directory path to process\n"
-			<< L" -u, --base-url base-url - The URL of the source directory\n"
 			<< L" -o, --output - Output filename(.meta4 or .metalink)\n"
 			<< L"\n"
 			<< L"Optional Arguments:\n"
@@ -528,6 +524,7 @@ int wmain( int argc, wchar_t **argv )
 			<< L" -c, --country country-code - ISO3166-1 alpha-2 two letter country code of the server specified by base-url above\n"
 			<< L" -h, --help - Show this screen\n"
 			<< L" -s, --show-statistics - Show statistics at the end of processing\n"
+			<< L" -u, --base-url base-url - The URL of the source directory\n"
 			<< L" -v, --verbose - Verbose output\n"
 			<< L" --no-md5 - Don't calculate MD5\n"
 			<< L" --no-sha1 - Don't calculate SHA-1\n"
@@ -537,7 +534,7 @@ int wmain( int argc, wchar_t **argv )
 			<< L" --no-generator - Don't output <generator>..</generator>\n"
 			<< L" --no-date - Don't output <updated>..</updated>" << endl;
 
-		return invalidArgs ? EXIT_FAILURE : EXIT_SUCCESS;
+		return EXIT_SUCCESS;
 	}
 
 	// <?xml version="1.0" encoding="UTF-8"?>
