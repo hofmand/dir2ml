@@ -39,6 +39,9 @@
     <ClInclude Include="..\..\crypto-algorithms\md5.h">
       <Filter>Header Files\contrib</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\crypto-algorithms\base64.h">
+      <Filter>Header Files\contrib</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -54,6 +57,9 @@
       <Filter>Source Files\contrib</Filter>
     </ClCompile>
     <ClCompile Include="..\..\crypto-algorithms\md5.c">
+      <Filter>Source Files\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\crypto-algorithms\base64.c">
       <Filter>Source Files\contrib</Filter>
     </ClCompile>
   </ItemGroup>

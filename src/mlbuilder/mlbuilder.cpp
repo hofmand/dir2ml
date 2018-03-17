@@ -16,9 +16,10 @@
 
 // https://github.com/B-Con/crypto-algorithms
 extern "C" {
+#include "crypto-algorithms\base64.h"
+#include "crypto-algorithms\md5.h"
 #include "crypto-algorithms\sha1.h"
 #include "crypto-algorithms\sha256.h"
-#include "crypto-algorithms\md5.h"
 }
 
 // https://github.com/zeux/pugixml
@@ -28,7 +29,7 @@ extern "C" {
 #include "tinydir/tinydir.h"
 
 constexpr wchar_t* APP_NAME = L"mlbuilder";
-constexpr wchar_t* VERSION_NO = L"0.4.0";
+constexpr wchar_t* VERSION_NO = L"0.4.1";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -84,6 +85,8 @@ constexpr process_dir_flags_t FLAG_SHA1         = 0x0004;
 constexpr process_dir_flags_t FLAG_SHA256       = 0x0008;
 constexpr process_dir_flags_t FLAG_NO_GENERATOR = 0x0010;
 constexpr process_dir_flags_t FLAG_NO_DATE      = 0x0020;
+constexpr process_dir_flags_t FLAG_NI           = 0x0040;
+constexpr process_dir_flags_t FLAG_MAGNET       = 0x0080;
 
 constexpr process_dir_flags_t FLAG_HASHES = FLAG_MD5 | FLAG_SHA1 | FLAG_SHA256;
 constexpr process_dir_flags_t FLAG_SPARSE_OUTPUT = FLAG_NO_GENERATOR | FLAG_NO_DATE;
@@ -102,9 +105,10 @@ struct ProcessDirContext
 void ProcessDir( wstring const& inputBaseDirName,
                  wstring const& inputDirSuffixName,
                  pugi::xml_node& xmlRootNode,
-                 std::wstring const& country,
-                 std::wstring const& baseURL,
-                 std::wstring const& currentDate,
+                 wstring const& country,
+                 wstring const& baseURL,
+                 wstring const& baseUrlType,
+                 wstring const& currentDate,
                  ProcessDirContext& ctx,
                  process_dir_flags_t flags )
 {
@@ -128,7 +132,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 		wcout << setw(ctx.dirDepth-1) << setfill(L'|') << L"+" << inputDirName << endl;
 
 	// Reuse the same file buffer to avoid reallocating memory.
-	static std::vector<char> fileBuffer;
+	static vector<char> fileBuffer;
 	constexpr max_buf_size bufferSize = 8192;
 
 	uint_fast64_t oldNumBytes = 0;
@@ -137,8 +141,8 @@ void ProcessDir( wstring const& inputBaseDirName,
 	{
 		tinydir_file file;
 		tinydir_readfile_n(&inputDir, &file, i);
-		std::wstring fileName = file.name;
-		std::wstring filePathRel = inputDirSuffixName;
+		wstring fileName = file.name;
+		wstring filePathRel = inputDirSuffixName;
 		if (!filePathRel.empty())
 			filePathRel += L"/";
 		filePathRel += file.name;
@@ -148,7 +152,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 			if (fileName != L"." && fileName != L"..")
 			{
 				ProcessDir(inputBaseDirName, filePathRel, xmlRootNode,
-					country, baseURL, currentDate, ctx, flags);
+					country, baseURL, baseUrlType, currentDate, ctx, flags);
 			}
 		}
 		else
@@ -186,7 +190,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 				// <generator>mlbuilder/0.1.0</generator>
 				xmlFileNode.append_child(L"generator")
 					.append_child(pugi::node_pcdata)
-					.set_value((std::wstring(L"mlbuild/") + VERSION_NO).c_str());
+					.set_value((wstring(L"mlbuild/") + VERSION_NO).c_str());
 			}
 
 			if (!(flags & FLAG_NO_DATE))
@@ -251,6 +255,8 @@ void ProcessDir( wstring const& inputBaseDirName,
 				} // end scope
 
 				// MD5
+				wstring md5HashStr;
+				vector<uint8_t> md5Digest(MD5_BLOCK_SIZE, 0);
 				if (flags & FLAG_MD5)
 				{
 					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
@@ -258,18 +264,19 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 					wostringstream buf;
 					{
-						unsigned char digest[MD5_BLOCK_SIZE];
-						memset(digest, 0, MD5_BLOCK_SIZE);
-						md5_final(&ctxMD5, digest);
+						md5_final(&ctxMD5, &md5Digest[0]);
 						for (size_t i = 0; i < MD5_BLOCK_SIZE; ++i)
-							buf << hex << setw(2) << setfill(L'0') << digest[i];
+							buf << hex << setw(2) << setfill(L'0') << md5Digest[i];
 					}
 
+					md5HashStr = buf.str();
 					xmlHashNode.append_child(pugi::node_pcdata)
-						.set_value(buf.str().c_str());
+						.set_value(md5HashStr.c_str());
 				} // end MD5
 
 				// SHA-1
+				wstring sha1HashStr;
+				vector<uint8_t> sha1Digest(SHA1_BLOCK_SIZE, 0);
 				if (flags & FLAG_SHA1)
 				{
 					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
@@ -277,17 +284,19 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 					wostringstream buf;
 					{
-						unsigned char digest[SHA1_BLOCK_SIZE];
-						memset(digest, 0, SHA1_BLOCK_SIZE);
-						sha1_final(&ctxSHA_1, digest);
+						sha1_final(&ctxSHA_1, &sha1Digest[0]);
 						for (size_t i = 0; i < SHA1_BLOCK_SIZE; ++i)
-							buf << hex << setw(2) << setfill(L'0') << digest[i];
+							buf << hex << setw(2) << setfill(L'0') << sha1Digest[i];
 					}
+
+					sha1HashStr = buf.str();
 					xmlHashNode.append_child(pugi::node_pcdata)
-						.set_value(buf.str().c_str());
+						.set_value(sha1HashStr.c_str());
 				} // end SHA-1
 
 				// SHA-256
+				wstring sha256HashStr;
+				vector<uint8_t> sha256Digest(SHA256_BLOCK_SIZE, 0);
 				if (flags & FLAG_SHA256)
 				{
 					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
@@ -295,17 +304,49 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 					wostringstream buf;
 					{
-						unsigned char digest[SHA256_BLOCK_SIZE];
-						memset(digest, 0, SHA256_BLOCK_SIZE);
-						sha256_final(&ctxSHA_256, digest);
+						sha256_final(&ctxSHA_256, &sha256Digest[0]);
 						for (size_t i = 0; i < SHA256_BLOCK_SIZE; ++i)
-							buf << hex << setw(2) << setfill(L'0') << digest[i];
+							buf << hex << setw(2) << setfill(L'0') << sha256Digest[i];
 					}
 
+					sha256HashStr = buf.str();
 					xmlHashNode.append_child(pugi::node_pcdata)
-						.set_value(buf.str().c_str());
+						.set_value(sha256HashStr.c_str());
 				} // end SHA-256
 
+				// https://tools.ietf.org/html/rfc6920
+				// Example URL: ni:///sha-256;UyaQV-Ev4rdLoHyJJWCi11OHfrYv9E1aGQAlMO2X_-Q
+				if ((flags & FLAG_NI) && (flags & FLAG_SHA256))
+				{
+					// Construct the URL in MBCS
+					auto bufSize = base64_encode(&sha256Digest[0], nullptr, sha256Digest.size(), 0);
+					string url8(bufSize, ' ');
+					base64_encode(&sha256Digest[0],
+						reinterpret_cast<uint8_t*>(&url8[0]), sha256Digest.size(), 0);
+					url8.erase(url8.find_last_not_of("=")+1); // trim trailing "=" padding characters
+					url8.insert(0, "ni://sha-256;");
+
+					// Convert to Unicode for pugixml
+					wstring_convert<codecvt_utf8<wchar_t> > conv;
+					wstring url16 = conv.from_bytes(url8);
+						
+					pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
+					xmlUrlNode.append_attribute(L"type").set_value(L"ni");
+					xmlUrlNode.append_child(pugi::node_pcdata)
+						.set_value(url16.c_str());
+				}
+
+				// Magnet links
+				if ((flags & FLAG_MAGNET) && (flags & FLAG_SHA256))
+				{
+					wostringstream buf;
+					buf << L"magnet:?xt=urn:sha256:" << sha256HashStr;
+
+					pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
+					xmlUrlNode.append_attribute(L"type").set_value(L"magnet");
+					xmlUrlNode.append_child(pugi::node_pcdata)
+						.set_value(buf.str().c_str());
+				}
 			} // end if any hashes enabled
 
 			// <url location="us">ftp://ftp.example.com/example.ext</url>
@@ -313,13 +354,13 @@ void ProcessDir( wstring const& inputBaseDirName,
 				pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
 				if (!country.empty())
 					xmlUrlNode.append_attribute(L"location").set_value(country.c_str());
+				xmlUrlNode.append_attribute(L"type").set_value(baseUrlType.c_str());
 
 				wostringstream buf;
 				buf << baseURL;
 				if (baseURL.back() != L'/')
 					buf << L"/";
 				buf << filePathRel;
-
 
 				xmlUrlNode.append_child(pugi::node_pcdata)
 					.set_value(buf.str().c_str());
@@ -445,6 +486,16 @@ int wmain( int argc, wchar_t **argv )
 			flags |= FLAG_NO_DATE;
 			validArg = true;
 		}
+		else if (argText == L"--ni")
+		{
+			flags |= FLAG_NI;
+			validArg = true;
+		}
+		else if (argText == L"--magnet")
+		{
+			flags |= FLAG_MAGNET;
+			validArg = true;
+		}
 
 		if (!validArg)
 		{
@@ -454,6 +505,7 @@ int wmain( int argc, wchar_t **argv )
 		}
 	}
 
+	wstring baseUrlType;
 	if (!wantHelp && !invalidArgs)
 	{
 		// Input directory
@@ -473,8 +525,11 @@ int wmain( int argc, wchar_t **argv )
 		else
 		{
 			auto i = baseURL.find(L"://"); // e.g. ftp://www.example.com
-			if (i == wstring::npos // couldn't find "://"
-				|| baseURL.substr(0, i).find_first_not_of(L"abcdefghijklmnopqrstuvwxyz", 0) != wstring::npos ) // something before "://" was not a lowercase alpha character
+			if (i != wstring::npos)
+			{
+				baseUrlType = baseURL.substr(0, i);
+			}
+			else if (baseURL.substr(0, i).find_first_not_of(L"abcdefghijklmnopqrstuvwxyz", 0) != wstring::npos ) // something before "://" was not a lowercase alpha character
 			{
 				baseUrlIsLocalPath = true;
 			}
@@ -495,6 +550,8 @@ int wmain( int argc, wchar_t **argv )
 			//
 			// Input:  file:///c:/WINDOWS/clock.avi
 			// Output: file:///c:/WINDOWS/clock.avi
+
+			baseUrlType = L"file";
 
 			// Append missing trailing "/" so fs::canonical() doesn't think it's a file
 			if (baseURL.back() != L'/' && baseURL.back() != L'\\' )
@@ -578,7 +635,9 @@ int wmain( int argc, wchar_t **argv )
 			<< L" --no-hash - Don't calculate _any_ hashes\n"
 			<< L" --sparse-output - combines --no-generator and --no-date to simplify diffs\n"
 			<< L" --no-generator - Don't output <generator>..</generator>\n"
-			<< L" --no-date - Don't output <updated>..</updated>" << endl;
+			<< L" --no-date - Don't output <updated>..</updated>\n"
+			<< L" --ni - Output Named Information (RFC6920) links (experimental)\n"
+			<< L" --magnet - Output magnet links (experimental)" << endl;
 
 		return EXIT_SUCCESS;
 	}
@@ -613,7 +672,7 @@ int wmain( int argc, wchar_t **argv )
 	auto startTick = GetTickCount64();
 
 	ProcessDirContext ctx;
-	ProcessDir(inputDirName, L"", xmlRootNode, country, baseURL, currentDate, ctx, flags);
+	ProcessDir(inputDirName, L"", xmlRootNode, country, baseURL, baseUrlType, currentDate, ctx, flags);
 
 	auto endTick = GetTickCount64();
 	if(wantStatistics)

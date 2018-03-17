@@ -82,6 +82,10 @@ Another use-case is to use `mlbuilder` to periodically [fingerprint](https://www
 
 **`--no-date`** - Don't output `<updated>..</updated>`
 
+**`--ni`** - Output Named Information ([RFC6920](https://tools.ietf.org/html/rfc6920)) links (experimental)
+
+**`--magnet`** - Output magnet links (experimental)
+
 ## Example Output File
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -91,14 +95,14 @@ Another use-case is to use `mlbuilder` to periodically [fingerprint](https://www
     <generator>mlbuilder/0.1.0</generator>
     <updated>2010-05-01T12:15:02Z</updated>
     <hash type="sha-256">17bfc4a6058d2d7d82db859c8b0528c6ab48d832fed620ed49fb3385dbf1684d</hash>
-    <url location="us">ftp://ftp.example.com/example.ext</url>
+    <url location="us" type="ftp">ftp://ftp.example.com/example.ext</url>
   </file>
   <file name="subdir/example2.ext">
     <size>14471447</size>
     <generator>mlbuilder/0.1.0</generator>
     <updated>2010-05-01T12:15:02Z</updated>
     <hash type="sha-256">f44bcce2a9c2aa3f73ddc853ad98f87cd8e7cee5b5c18719ebb220da3fd4dbc9</hash>
-    <url location="us">ftp://ftp.example.com/subdir/example2.ext</url>
+    <url location="us" type="ftp">ftp://ftp.example.com/subdir/example2.ext</url>
   </file>
 </metalink>
 ```
@@ -111,7 +115,6 @@ Another use-case is to use `mlbuilder` to periodically [fingerprint](https://www
 * Only MD5, SHA-1, and SHA-256 hashes are currently supported. *(Do we need any others?)*
 
 ## Future Plans
-* Create `.magnet` links for each file
 * Support multiple `country-code`/`base-url` pairs
 * Deep-inspect archive files? (`.zip`, `.iso`, etc.)
 * Output the `.meta4` file directly to a `.zip` / `.rar` / `.7z` container to save storage space.
