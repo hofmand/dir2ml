@@ -1,4 +1,4 @@
-// mlbuilder.cpp : https://tools.ietf.org/html/rfc5854
+// dir2ml.cpp : https://tools.ietf.org/html/rfc5854
 //
 
 #include "stdafx.h"
@@ -28,18 +28,18 @@ extern "C" {
 // https://github.com/cxong/tinydir
 #include "tinydir/tinydir.h"
 
-constexpr wchar_t* APP_NAME = L"mlbuilder";
-constexpr wchar_t* VERSION_NO = L"0.4.1";
+constexpr wchar_t* APP_NAME = L"dir2ml";
+constexpr wchar_t* VERSION_NO = L"0.5.0";
 
 //////////////////////////////////////////////////////////////////////////
 //
-// mlbuilder: read a directory structure and create a metalinks file.
+// dir2ml: read a directory structure and create a metalinks file.
 //
 //////////////////////////////////////////////////////////////////////////
 //
 // Example Usage:
 //
-// mlbuilder -d ./MyMirror -u ftp://ftp.example.com -l us -o MyMirror.meta4
+// dir2ml -d ./MyMirror -u ftp://ftp.example.com -c us -o MyMirror.meta4
 //
 //////////////////////////////////////////////////////////////////////////
 //
@@ -49,14 +49,14 @@ constexpr wchar_t* VERSION_NO = L"0.4.1";
 // <metalink xmlns="urn:ietf:params:xml:ns:metalink" xmlns:nsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="metalink4.xsd">
 //   <file name="example.ext">
 //     <size>14471447</size>
-//     <generator>mlbuilder/0.1.0</generator>
+//     <generator>dir2ml/0.1.0</generator>
 //     <updated>2010-05-01T12:15:02Z</updated>
 //     <hash type="sha-256">17bfc4a6058d2d7d82db859c8b0528c6ab48d832fed620ed49fb3385dbf1684d</hash>
 //     <url location="us">ftp://ftp.example.com/example.ext</url>
 //	 </file>
 //   <file name="subdir/example2.ext">
 //     <size>14471447</size>
-//     <generator>mlbuilder/0.1.0</generator>
+//     <generator>dir2ml/0.1.0</generator>
 //     <updated>2010-05-01T12:15:02Z</updated>
 //     <hash type="sha-256">f44bcce2a9c2aa3f73ddc853ad98f87cd8e7cee5b5c18719ebb220da3fd4dbc9</hash>
 //     <url location="us">ftp://ftp.example.com/subdir/example2.ext</url>
@@ -187,10 +187,10 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 			if (!(flags & FLAG_NO_GENERATOR))
 			{
-				// <generator>mlbuilder/0.1.0</generator>
+				// <generator>dir2ml/0.1.0</generator>
 				xmlFileNode.append_child(L"generator")
 					.append_child(pugi::node_pcdata)
-					.set_value((wstring(L"mlbuild/") + VERSION_NO).c_str());
+					.set_value((wstring(APP_NAME) + VERSION_NO).c_str());
 			}
 
 			if (!(flags & FLAG_NO_DATE))
@@ -256,7 +256,8 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 				// MD5
 				wstring md5HashStr;
-				vector<uint8_t> md5Digest(MD5_BLOCK_SIZE, 0);
+				static vector<uint8_t> md5Digest(MD5_BLOCK_SIZE);
+				fill(md5Digest.begin(), md5Digest.end(), 0);
 				if (flags & FLAG_MD5)
 				{
 					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
@@ -276,7 +277,8 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 				// SHA-1
 				wstring sha1HashStr;
-				vector<uint8_t> sha1Digest(SHA1_BLOCK_SIZE, 0);
+				static vector<uint8_t> sha1Digest(SHA1_BLOCK_SIZE);
+				fill(sha1Digest.begin(), sha1Digest.end(), 0);
 				if (flags & FLAG_SHA1)
 				{
 					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
@@ -296,7 +298,8 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 				// SHA-256
 				wstring sha256HashStr;
-				vector<uint8_t> sha256Digest(SHA256_BLOCK_SIZE, 0);
+				static vector<uint8_t> sha256Digest(SHA256_BLOCK_SIZE);
+				fill(sha256Digest.begin(), sha256Digest.end(), 0);
 				if (flags & FLAG_SHA256)
 				{
 					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
@@ -608,13 +611,13 @@ int wmain( int argc, wchar_t **argv )
 	{
 		wcout << L"Usage:\n"
 			<< L"\n"
-			<< L" mlbuilder --help\n"
-			<< L" mlbuilder --directory path [--base-url url] --output outfile [--country code] [--verbose]\n"
-			<< L" mlbuilder -d directory-path -u base-url -o outfile [-c country-code] [-v]\n"
+			<< L" dir2ml --help\n"
+			<< L" dir2ml --directory path [--base-url url] --output outfile [--country code] [--verbose]\n"
+			<< L" dir2ml -d directory-path -u base-url -o outfile [-c country-code] [-v]\n"
 			<< L"\n"
 			<< L"Example usage:\n"
 			<< L"\n"
-			<< L" mlbuilder -d ./MyMirror -u ftp://ftp.example.com -c us -o MyMirror.meta4\n"
+			<< L" dir2ml -d ./MyMirror -u ftp://ftp.example.com -c us -o MyMirror.meta4\n"
 			<< L"\n"
 			<< L"Required Arguments:\n"
 			<< L"\n"
