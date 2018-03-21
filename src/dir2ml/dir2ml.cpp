@@ -88,8 +88,10 @@ constexpr process_dir_flags_t FLAG_NO_DATE      = 0x0020;
 constexpr process_dir_flags_t FLAG_NI           = 0x0040;
 constexpr process_dir_flags_t FLAG_MAGNET       = 0x0080;
 
-constexpr process_dir_flags_t FLAG_HASHES = FLAG_MD5 | FLAG_SHA1 | FLAG_SHA256;
+constexpr process_dir_flags_t FLAG_ALL_HASHES = FLAG_MD5 | FLAG_SHA1 | FLAG_SHA256;
 constexpr process_dir_flags_t FLAG_SPARSE_OUTPUT = FLAG_NO_GENERATOR | FLAG_NO_DATE;
+
+constexpr process_dir_flags_t FLAG_DEFAULT = FLAG_SHA256;
 
 constexpr size_t PROGRESS_MARKER_BYTES = 1000000; // 1MB (not MiB)
 
@@ -190,7 +192,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 				// <generator>dir2ml/0.1.0</generator>
 				xmlFileNode.append_child(L"generator")
 					.append_child(pugi::node_pcdata)
-					.set_value((wstring(APP_NAME) + VERSION_NO).c_str());
+					.set_value((wstring(APP_NAME) + L"/" + VERSION_NO).c_str());
 			}
 
 			if (!(flags & FLAG_NO_DATE))
@@ -204,7 +206,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 			// <hash type="md5">05c7d97c0e3a16ced35c2d9e4554f906</hash>
 			// <hash type="sha-1">a97fcf6ba9358f8a6f62beee4421863d3e52b080</hash>
 			// <hash type="sha-256">f0ad929cd259957e160ea442eb80986b5f01...</hash>
-			if (flags & FLAG_HASHES)
+			if (flags & FLAG_ALL_HASHES)
 			{
 				MD5_CTX ctxMD5;
 				md5_init(&ctxMD5);
@@ -390,7 +392,7 @@ int wmain( int argc, wchar_t **argv )
 
 	wcout << APP_NAME << L" " << VERSION_NO << L"\n" << endl;
 
-	process_dir_flags_t flags(FLAG_HASHES);
+	process_dir_flags_t flags(FLAG_DEFAULT);
 
 	for(int a = 1; a < argc; ++a)
 	{
@@ -454,25 +456,40 @@ int wmain( int argc, wchar_t **argv )
 			validArg = true;
 			return EXIT_SUCCESS;
 		}
-		else if (argText == L"--no-md5")
+		else if (argText == L"--hash")
 		{
-			flags &= ~FLAG_MD5;
-			validArg = true;
-		}
-		else if (argText == L"--no-sha1")
-		{
-			flags &= ~FLAG_SHA1;
-			validArg = true;
-		}
-		else if (argText == L"--no-sha256")
-		{
-			flags &= ~FLAG_SHA256;
-			validArg = true;
-		}
-		else if (argText == L"--no-hash")
-		{
-			flags &= ~FLAG_HASHES;
-			validArg = true;
+			flags &= ~FLAG_ALL_HASHES;
+
+			if (a < argc - 1)
+			{
+				++a;
+				std::wstringstream ss(argv[a]);
+				while (ss.good())
+				{
+					wstring substr;
+					getline(ss, substr, L',');
+					if (substr == L"md5")
+					{
+						flags |= FLAG_MD5;
+						validArg = true;
+					}
+					else if (substr == L"sha1")
+					{
+						flags |= FLAG_SHA1;
+						validArg = true;
+					}
+					else if (substr == L"sha256")
+					{
+						flags |= FLAG_SHA256;
+						validArg = true;
+					}
+					else
+					{
+						validArg = false;
+						break;
+					}
+				}
+			}
 		}
 		else if (argText == L"--sparse-output")
 		{
@@ -617,7 +634,7 @@ int wmain( int argc, wchar_t **argv )
 			<< L"\n"
 			<< L"Example usage:\n"
 			<< L"\n"
-			<< L" dir2ml -d ./MyMirror -u ftp://ftp.example.com -c us -o MyMirror.meta4\n"
+			<< L" dir2ml -d ./MyMirror -u ftp://ftp.example.com -c us --sha256 -o MyMirror.meta4\n"
 			<< L"\n"
 			<< L"Required Arguments:\n"
 			<< L"\n"
@@ -631,14 +648,11 @@ int wmain( int argc, wchar_t **argv )
 			<< L" -s, --show-statistics - Show statistics at the end of processing\n"
 			<< L" -u, --base-url base-url - The URL of the source directory. If this is omitted, the directory specified by --directory will be used, prepended by file://.\n"
 			<< L"   Note: on Windows, backslashes (\\) in the base-url will be replaced by forward slashes (/).\n"
-			<< L" -v, --verbose - Verbose output\n"
-			<< L" --no-md5 - Don't calculate MD5\n"
-			<< L" --no-sha1 - Don't calculate SHA-1\n"
-			<< L" --no-sha256 - Don't calculate SHA-256\n"
-			<< L" --no-hash - Don't calculate _any_ hashes\n"
+			<< L" -v, --verbose - Verbose output to stdout\n"
+			<< L" --hash hash-list - Calculate and output hash-list (comma-separated). Available hashes are md5, sha1, and sha256. If none are specified, sha256 is used.\n"
 			<< L" --sparse-output - combines --no-generator and --no-date to simplify diffs\n"
-			<< L" --no-generator - Don't output <generator>..</generator>\n"
-			<< L" --no-date - Don't output <updated>..</updated>\n"
+			<< L" --no-generator - the name of the tool used to generate the .meta4 file\n"
+			<< L" --no-date - Don't output the date the .meta4 file was generated\n"
 			<< L" --ni - Output Named Information (RFC6920) links (experimental)\n"
 			<< L" --magnet - Output magnet links (experimental)" << endl;
 

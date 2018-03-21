@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mlbuilder", "mlbuilder\mlbuilder.vcxproj", "{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "contrib", "contrib", "{88603F24-387F-46D3-B3D4-692E2470FA4D}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pugixml_vs2015", "..\pugixml\scripts\pugixml_vs2015.vcxproj", "{07CF01C0-B887-499D-AD9C-799CB6A9FE64}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dir2ml", "dir2ml\dir2ml.vcxproj", "{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,22 +21,6 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Debug|x64.ActiveCfg = Debug|x64
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Debug|x64.Build.0 = Debug|x64
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Debug|x86.ActiveCfg = Debug|Win32
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Debug|x86.Build.0 = Debug|Win32
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Debug|x64.ActiveCfg = Debug|x64
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Debug|x64.Build.0 = Debug|x64
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Debug|x86.ActiveCfg = Debug|Win32
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Debug|x86.Build.0 = Debug|Win32
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Release|x64.ActiveCfg = Release|x64
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Release|x64.Build.0 = Release|x64
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Release|x86.ActiveCfg = Release|Win32
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Release|x86.Build.0 = Release|Win32
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Release|x64.ActiveCfg = Release|x64
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Release|x64.Build.0 = Release|x64
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Release|x86.ActiveCfg = Release|Win32
-		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Release|x86.Build.0 = Release|Win32
 		{07CF01C0-B887-499D-AD9C-799CB6A9FE64}.Debug|x64.ActiveCfg = Debug|x64
 		{07CF01C0-B887-499D-AD9C-799CB6A9FE64}.Debug|x64.Build.0 = Debug|x64
 		{07CF01C0-B887-499D-AD9C-799CB6A9FE64}.Debug|x86.ActiveCfg = Debug|Win32
@@ -53,6 +37,22 @@ Global
 		{07CF01C0-B887-499D-AD9C-799CB6A9FE64}.Release|x64.Build.0 = Release|x64
 		{07CF01C0-B887-499D-AD9C-799CB6A9FE64}.Release|x86.ActiveCfg = Release|Win32
 		{07CF01C0-B887-499D-AD9C-799CB6A9FE64}.Release|x86.Build.0 = Release|Win32
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Debug|x64.ActiveCfg = Debug|x64
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Debug|x64.Build.0 = Debug|x64
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Debug|x86.ActiveCfg = Debug|Win32
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Debug|x86.Build.0 = Debug|Win32
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Debug|x64.ActiveCfg = Debug|x64
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Debug|x64.Build.0 = Debug|x64
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Debug|x86.ActiveCfg = Debug|Win32
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Debug|x86.Build.0 = Debug|Win32
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Release|x64.ActiveCfg = Release|x64
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Release|x64.Build.0 = Release|x64
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Release|x86.ActiveCfg = Release|Win32
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.DLL-Import Release|x86.Build.0 = Release|Win32
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Release|x64.ActiveCfg = Release|x64
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Release|x64.Build.0 = Release|x64
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Release|x86.ActiveCfg = Release|Win32
+		{29AAB656-AFD1-4AF2-81DD-9DD16AFB4235}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

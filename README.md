@@ -36,15 +36,17 @@ Another use-case is to use `dir2ml` to periodically [fingerprint](https://www.te
 
 ## Usage
 
+### Show Help
+
 **`dir2ml --help`**
 
-**`dir2ml --directory`** *path* [**`--base-url`** *url*] **`--output`** *outfile* [**`--country`** *code*] [**`--verbose`**]
+### Minimal Parameters
 
-**`dir2ml -d`** *directory-path* [**`-u`** *base-url*] **`-o`** *outfile* [**`-c`** *country-code*] [**`-v`**]
+**`dir2ml -d`** *path* **`-o`** *outfile*
 
 ### Example usage:
 
-`dir2ml -d ./MyMirror -u ftp://ftp.example.com -c us -o MyMirror.meta4`
+`dir2ml -d ./MyMirror -u ftp://ftp.example.com -o MyMirror.meta4`
 
 ### Required Arguments:
 
@@ -66,21 +68,15 @@ Another use-case is to use `dir2ml` to periodically [fingerprint](https://www.te
 
    Note: on Windows, backslashes (`\`) in the *base-url* will be replaced by forward slashes (`/`).
 
-**`-v`**, **`--verbose`** - Verbose output
+**`-v`**, **`--verbose`** - Verbose output to `stdout`
 
-**`--no-md5`** - Don't calculate MD5
-
-**`--no-sha1`** - Don't calculate SHA-1
-
-**`--no-sha256`** - Don't calculate SHA-256
-
-**`--no-hash`** - Don't calculate *any* hashes
+**`--hash`** *hash-list* - Calculate and output all of the hashes specified by *hash-list* (comma-separated). Available hashes are md5, sha1, and sha256. If none are specified, sha256 is used.
 
 **`--sparse-output`** - combines `--no-generator` and `--no-date` to simplify diffs
 
-**`--no-generator`** - Don't output `<generator>..</generator>`
+**`--no-generator`** - Don't output the name and version of the tool used to generate the `.meta4` file
 
-**`--no-date`** - Don't output `<updated>..</updated>`
+**`--no-date`** - Don't output the date the `.meta4` file was generated
 
 **`--ni`** - Output Named Information ([RFC6920](https://tools.ietf.org/html/rfc6920)) links (experimental)
 
@@ -115,9 +111,12 @@ Another use-case is to use `dir2ml` to periodically [fingerprint](https://www.te
 * Only MD5, SHA-1, and SHA-256 hashes are currently supported. *(Do we need any others?)*
 
 ## Future Plans
+* Multithreaded hashing
 * Support multiple `country-code`/`base-url` pairs
 * Deep-inspect archive files? (`.zip`, `.iso`, etc.)
-* Output the `.meta4` file directly to a `.zip` / `.rar` / `.7z` container to save storage space.
+* Output the `.meta4` file directly to a `.zip` / `.rar` / `.7z` container, in order to save storage space
+* Convert [QuickHash](https://quickhash-gui.org/) output files to metalink files (unless the developer decides to [output metalink files directly](https://quickhash-gui.org/bugs/output-in-rfc5854-format/))
+* Add [xxHash](https://github.com/Cyan4973/xxHash) algorithm
 
 ## Built With
 * Microsoft Visual Studio 2015; targeting x64, Unicode
