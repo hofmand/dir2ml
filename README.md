@@ -104,6 +104,7 @@ Another use-case is to use `dir2ml` to periodically [fingerprint](https://www.te
 ```
 
 ## Limitations
+* 32-bit build doesn't correctly handle large files >4GiB.
 * Windows only but the code uses only standard C/C++ (no MFC/.NET, etc.) so compiling for other operating systems should not be an issue.
 * Single threaded so `dir2ml` is CPU-bound, especially when the storage device is fast.
 * `dir2ml.exe` may run out of memory when processing a directory containing millions of files because the XML file isn't written until the very end. If you run into this problem, please  [open an issue](https://github.com/hofmand/metalink-builder/issues).
