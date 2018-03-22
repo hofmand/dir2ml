@@ -10,6 +10,7 @@
 #include <iostream>
 #include <sstream>
 #include <stdlib.h>
+#include <sys/stat.h>  
 #include <vector>
 
 #include "windows.h"
@@ -139,7 +140,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 	uint_fast64_t oldNumBytes = 0;
 
-	for (int i = 0; i < inputDir.n_files; i++)
+	for (size_t i = 0; i < inputDir.n_files; i++)
 	{
 		tinydir_file file;
 		tinydir_readfile_n(&inputDir, &file, i);
@@ -177,10 +178,32 @@ void ProcessDir( wstring const& inputBaseDirName,
 				.set_value(filePathRel.c_str());
 
 			// <size>14471447</size>
-			size_t fileSize;
+			uint_fast64_t fileSize(0);
 			ifstream inFile(filePathAbs, ifstream::ate | ifstream::binary);
 			{
+#ifdef WIN32
+				// Use _wstat64 to make 32-bit windows build report the
+				// correct file size, because ifstream::tellg() is limited
+				// to 32 bits in 32-bit builds.
+				{
+					struct __stat64 fileInfo;
+					switch (_wstat64(filePathAbs.c_str(), &fileInfo))
+					{
+					case 0:
+						fileSize = fileInfo.st_size;
+						break;
+					case ENOENT:
+						wcout << L"File \"" << filePathAbs << "\" not found!" << endl;
+						return;
+					default:
+						wcout << L"Undefined error reading file \"" << filePathAbs << L"\"!" << endl;
+						return;
+					}
+				}
+#else
+				// Not sure how to do the above in other operating systems
 				fileSize = inFile.tellg();
+#endif
 				xmlFileNode.append_child(L"size")
 					.append_child(pugi::node_pcdata)
 					.set_value(to_wstring(fileSize).c_str());
@@ -249,7 +272,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 							// Every 1MB let's output a '.' just to prove we're still alive
 							auto numTicks = ((oldNumBytes + bytesRead) / PROGRESS_MARKER_BYTES) - (oldNumBytes / PROGRESS_MARKER_BYTES);
 							if(numTicks != 0)
-								wcout << wstring(numTicks, L'.');
+								wcout << wstring(static_cast<size_t>(numTicks), L'.');
 						} // end if (bytesRead > 0)
 
 						oldNumBytes += bytesRead;
@@ -555,7 +578,7 @@ int wmain( int argc, wchar_t **argv )
 			}
 		}
 		
-		if (baseUrlIsLocalPath)
+		if ( !baseURL.empty() && baseUrlIsLocalPath )
 		{
 			// RFC1738 says, "A file URL takes the form: file://<host>/<path>"
 
