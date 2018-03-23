@@ -86,11 +86,14 @@ constexpr process_dir_flags_t FLAG_SHA1         = 0x0004;
 constexpr process_dir_flags_t FLAG_SHA256       = 0x0008;
 constexpr process_dir_flags_t FLAG_NO_GENERATOR = 0x0010;
 constexpr process_dir_flags_t FLAG_NO_DATE      = 0x0020;
-constexpr process_dir_flags_t FLAG_NI           = 0x0040;
-constexpr process_dir_flags_t FLAG_MAGNET       = 0x0080;
+constexpr process_dir_flags_t FLAG_NI_URL       = 0x0040;
+constexpr process_dir_flags_t FLAG_MAGNET_URL   = 0x0080;
+constexpr process_dir_flags_t FLAG_FILE_URL     = 0x0100;
+constexpr process_dir_flags_t FLAG_BASE_URL     = 0x0200;
 
 constexpr process_dir_flags_t FLAG_ALL_HASHES = FLAG_MD5 | FLAG_SHA1 | FLAG_SHA256;
 constexpr process_dir_flags_t FLAG_SPARSE_OUTPUT = FLAG_NO_GENERATOR | FLAG_NO_DATE;
+constexpr process_dir_flags_t FLAG_ALL_URL_TYPES = FLAG_NI_URL | FLAG_MAGNET_URL | FLAG_FILE_URL | FLAG_BASE_URL;
 
 constexpr process_dir_flags_t FLAG_DEFAULT = FLAG_SHA256;
 
@@ -111,6 +114,7 @@ void ProcessDir( wstring const& inputBaseDirName,
                  wstring const& country,
                  wstring const& baseURL,
                  wstring const& baseUrlType,
+                 wstring const& fileUrlBase,
                  wstring const& currentDate,
                  ProcessDirContext& ctx,
                  process_dir_flags_t flags )
@@ -155,7 +159,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 			if (fileName != L"." && fileName != L"..")
 			{
 				ProcessDir(inputBaseDirName, filePathRel, xmlRootNode,
-					country, baseURL, baseUrlType, currentDate, ctx, flags);
+					country, baseURL, baseUrlType, fileUrlBase, currentDate, ctx, flags);
 			}
 		}
 		else
@@ -344,7 +348,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 				// https://tools.ietf.org/html/rfc6920
 				// Example URL: ni:///sha-256;UyaQV-Ev4rdLoHyJJWCi11OHfrYv9E1aGQAlMO2X_-Q
-				if ((flags & FLAG_NI) && (flags & FLAG_SHA256))
+				if ((flags & FLAG_NI_URL) && (flags & FLAG_SHA256))
 				{
 					// Construct the URL in MBCS
 					auto bufSize = base64_encode(&sha256Digest[0], nullptr, sha256Digest.size(), 0);
@@ -365,7 +369,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 				}
 
 				// Magnet links
-				if ((flags & FLAG_MAGNET) && (flags & FLAG_SHA256))
+				if ((flags & FLAG_MAGNET_URL) && (flags & FLAG_SHA256))
 				{
 					wostringstream buf;
 					buf << L"magnet:?xt=urn:sha256:" << sha256HashStr;
@@ -378,6 +382,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 			} // end if any hashes enabled
 
 			// <url location="us">ftp://ftp.example.com/example.ext</url>
+			if(flags & FLAG_BASE_URL)
 			{
 				pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
 				if (!country.empty())
@@ -387,6 +392,22 @@ void ProcessDir( wstring const& inputBaseDirName,
 				wostringstream buf;
 				buf << baseURL;
 				if (baseURL.back() != L'/')
+					buf << L"/";
+				buf << filePathRel;
+
+				xmlUrlNode.append_child(pugi::node_pcdata)
+					.set_value(buf.str().c_str());
+			} // end <url>..</url>
+
+			// <url location="us">ftp://ftp.example.com/example.ext</url>
+			if(flags & FLAG_FILE_URL)
+			{
+				pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
+				xmlUrlNode.append_attribute(L"type").set_value(L"file");
+
+				wostringstream buf;
+				buf << fileUrlBase;
+				if (fileUrlBase.back() != L'/')
 					buf << L"/";
 				buf << filePathRel;
 
@@ -408,7 +429,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 int wmain( int argc, wchar_t **argv )
 {
-	wstring inputDirName, baseURL, country, outFileName;
+	wstring inputDirName, baseURL, fileUrlBase, country, outFileName;
 
 	bool invalidArgs(false);
 	bool wantHelp(false), wantStatistics(false), wantVerbose(false);
@@ -437,6 +458,7 @@ int wmain( int argc, wchar_t **argv )
 			{
 				++a;
 				baseURL = argv[a];
+				flags |= FLAG_BASE_URL;
 				validArg = true;
 			}
 		}
@@ -479,7 +501,7 @@ int wmain( int argc, wchar_t **argv )
 			validArg = true;
 			return EXIT_SUCCESS;
 		}
-		else if (argText == L"--hash")
+		else if (argText == L"--hash-type")
 		{
 			flags &= ~FLAG_ALL_HASHES;
 
@@ -529,14 +551,19 @@ int wmain( int argc, wchar_t **argv )
 			flags |= FLAG_NO_DATE;
 			validArg = true;
 		}
-		else if (argText == L"--ni")
+		else if (argText == L"--ni-url")
 		{
-			flags |= FLAG_NI;
+			flags |= FLAG_NI_URL;
 			validArg = true;
 		}
-		else if (argText == L"--magnet")
+		else if (argText == L"--magnet-url")
 		{
-			flags |= FLAG_MAGNET;
+			flags |= FLAG_MAGNET_URL;
+			validArg = true;
+		}
+		else if (argText == L"-f" || argText == L"--file-url")
+		{
+			flags |= FLAG_FILE_URL;
 			validArg = true;
 		}
 
@@ -558,27 +585,29 @@ int wmain( int argc, wchar_t **argv )
 			invalidArgs = true;
 		}
 
-		// Base URL
-		bool baseUrlIsLocalPath(false);
-		if (baseURL.empty())
+		// At least one URL type must be supplied
+		if ((flags & FLAG_ALL_URL_TYPES) == 0)
 		{
-			baseURL = inputDirName;
-			baseUrlIsLocalPath = true;
+			wcerr << L"Missing -u/--base-url, -f/--file-url, --ni-url, or --magnet-url!" << endl;
+			invalidArgs = true;
 		}
-		else
+
+		// Base URL
+		if(flags & FLAG_BASE_URL)
 		{
 			auto i = baseURL.find(L"://"); // e.g. ftp://www.example.com
 			if (i != wstring::npos)
 			{
 				baseUrlType = baseURL.substr(0, i);
 			}
-			else if (baseURL.substr(0, i).find_first_not_of(L"abcdefghijklmnopqrstuvwxyz", 0) != wstring::npos ) // something before "://" was not a lowercase alpha character
+			else
 			{
-				baseUrlIsLocalPath = true;
+				wcerr << L"Invalid -u/--base-url!" << endl;
+				invalidArgs = true;
 			}
-		}
-		
-		if ( !baseURL.empty() && baseUrlIsLocalPath )
+		} // end scope
+
+		if (flags & FLAG_FILE_URL)
 		{
 			// RFC1738 says, "A file URL takes the form: file://<host>/<path>"
 
@@ -594,15 +623,14 @@ int wmain( int argc, wchar_t **argv )
 			// Input:  file:///c:/WINDOWS/clock.avi
 			// Output: file:///c:/WINDOWS/clock.avi
 
-			baseUrlType = L"file";
-
 			// Append missing trailing "/" so fs::canonical() doesn't think it's a file
-			if (baseURL.back() != L'/' && baseURL.back() != L'\\' )
-				baseURL += L"/"; 
+			fileUrlBase = inputDirName;
+			if (fileUrlBase.back() != L'/' && fileUrlBase.back() != L'\\')
+				fileUrlBase += L"/";
 
 			// Get the full path of base-url
 			error_code ec;
-			fs::path canonicalPath = fs::canonical(baseURL, ec);
+			fs::path canonicalPath = fs::canonical(fileUrlBase, ec);
 			if (ec)
 			{
 				wcerr << L"Can't get canonical path from \"" << inputDirName
@@ -622,23 +650,23 @@ int wmain( int argc, wchar_t **argv )
 					canonicalName.insert(0, L"///");
 				}
 			}
-			baseURL = fs::path(L"file:").append(canonicalName);
-		}
-		replace(baseURL.begin(), baseURL.end(), L'\\', L'/');
+			fileUrlBase = fs::path(L"file:").append(canonicalName);
+			replace(fileUrlBase.begin(), fileUrlBase.end(), L'\\', L'/');
+		} // end FLAG_FILE
+	}
 
-		// Country code
-		if (!country.empty() && country.size() != 2)
-		{
-			wcerr << "Invalid country code \"" << country << "\"!" << endl;
-			invalidArgs = true;
-		}
+	// Country code
+	if (!country.empty() && country.size() != 2)
+	{
+		wcerr << "Invalid country code \"" << country << "\"!" << endl;
+		invalidArgs = true;
+	}
 
-		// Output filename
-		if (outFileName.empty())
-		{
-			wcerr << L"Missing output filename!" << endl;
-			invalidArgs = true;
-		}
+	// Output filename
+	if (outFileName.empty())
+	{
+		wcerr << L"Missing output filename!" << endl;
+		invalidArgs = true;
 	}
 
 	if (invalidArgs)
@@ -664,20 +692,23 @@ int wmain( int argc, wchar_t **argv )
 			<< L" -d, --directory directory - The directory path to process\n"
 			<< L" -o, --output outfile - Output filename(.meta4 or .metalink)\n"
 			<< L"\n"
+			<< L"At least one of -u/--base-url, -f/--file-url, --ni-url, or --magnet-url must be supplied.\n"
+			<< L"\n"
 			<< L"Optional Arguments:\n"
 			<< L"\n"
 			<< L" -c, --country country-code - ISO3166-1 alpha-2 two letter country code of the server specified by base-url above\n"
 			<< L" -h, --help - Show this screen\n"
 			<< L" -s, --show-statistics - Show statistics at the end of processing\n"
-			<< L" -u, --base-url base-url - The URL of the source directory. If this is omitted, the directory specified by --directory will be used, prepended by file://.\n"
+			<< L" -u, --base-url base-url - The base/root URL of an online directory containing the files. For example, ftp://ftp.example.com. dir2ml will append the relative path of each file to the base-url.\n"
+			<< L" -f, --file - Add a local source for the file, using the directory specified by `--directory` prepended by `file://`. This is useful for fingerprinting a directory or hard drive."
 			<< L"   Note: on Windows, backslashes (\\) in the base-url will be replaced by forward slashes (/).\n"
 			<< L" -v, --verbose - Verbose output to stdout\n"
-			<< L" --hash hash-list - Calculate and output hash-list (comma-separated). Available hashes are md5, sha1, and sha256. If none are specified, sha256 is used.\n"
+			<< L" --hash-type hash-list - Calculate and output hash-list (comma-separated). Available hashes are md5, sha1, and sha256. If none are specified, sha256 is used.\n"
 			<< L" --sparse-output - combines --no-generator and --no-date to simplify diffs\n"
 			<< L" --no-generator - the name of the tool used to generate the .meta4 file\n"
 			<< L" --no-date - Don't output the date the .meta4 file was generated\n"
-			<< L" --ni - Output Named Information (RFC6920) links (experimental)\n"
-			<< L" --magnet - Output magnet links (experimental)" << endl;
+			<< L" --ni-url - Output Named Information (RFC6920) links (experimental)\n"
+			<< L" --magnet-url - Output magnet links (experimental)" << endl;
 
 		return EXIT_SUCCESS;
 	}
@@ -712,7 +743,7 @@ int wmain( int argc, wchar_t **argv )
 	auto startTick = GetTickCount64();
 
 	ProcessDirContext ctx;
-	ProcessDir(inputDirName, L"", xmlRootNode, country, baseURL, baseUrlType, currentDate, ctx, flags);
+	ProcessDir(inputDirName, L"", xmlRootNode, country, baseURL, baseUrlType, fileUrlBase, currentDate, ctx, flags);
 
 	auto endTick = GetTickCount64();
 	if(wantStatistics)
