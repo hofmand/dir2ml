@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <stdlib.h>
 #include <sys/stat.h>  
@@ -108,6 +109,9 @@ struct ProcessDirContext
 	size_t dirDepth;
 };
 
+enum PATHTYPE { PATH_IS_FILE, PATH_IS_DIR };
+typedef map<wstring, PATHTYPE> PATH_NAME_TYPE_MAP;
+
 void ProcessDir( wstring const& inputBaseDirName,
                  wstring const& inputDirSuffixName,
                  pugi::xml_node& xmlRootNode,
@@ -127,16 +131,33 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 	++ctx.dirDepth;
 
-	tinydir_dir inputDir;
-	if (0 != tinydir_open_sorted(&inputDir, inputDirName.c_str()))
+	PATH_NAME_TYPE_MAP pathContents;
 	{
-		wcerr << L"Couldn't open input directory \"" << inputDirName
-			<< L"\"!" << endl;
-		return;
+		tinydir_dir inputDir;
+		if (0 != tinydir_open(&inputDir, inputDirName.c_str()))
+		{
+			wcerr << L"Couldn't open input directory \"" << inputDirName
+				<< L"\"!" << endl;
+			return;
+		}
+
+		while(inputDir.has_next)
+		{
+			tinydir_file file;
+			tinydir_readfile(&inputDir, &file);
+
+			wstring fileName = file.name;
+			if (fileName != L"." && fileName != L"..")
+				pathContents[file.name] = file.is_dir ? PATH_IS_DIR : PATH_IS_FILE;
+
+			tinydir_next(&inputDir);
+		}
+
+		tinydir_close(&inputDir);
 	}
 
-	if(wantVerbose)
-		wcout << setw(ctx.dirDepth-1) << setfill(L'|') << L"+" << inputDirName << endl;
+	if (wantVerbose)
+		wcout << setw(ctx.dirDepth - 1) << setfill(L'|') << L"+" << inputDirName << endl;
 
 	// Reuse the same file buffer to avoid reallocating memory.
 	static vector<char> fileBuffer;
@@ -144,23 +165,18 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 	uint_fast64_t oldNumBytes = 0;
 
-	for (size_t i = 0; i < inputDir.n_files; i++)
+	for(auto it = pathContents.begin(); it != pathContents.end(); ++it)
 	{
-		tinydir_file file;
-		tinydir_readfile_n(&inputDir, &file, i);
-		wstring fileName = file.name;
+		wstring fileName = it->first;
 		wstring filePathRel = inputDirSuffixName;
 		if (!filePathRel.empty())
 			filePathRel += L"/";
-		filePathRel += file.name;
+		filePathRel += fileName;
 
-		if (file.is_dir)
+		if (it->second == PATH_IS_DIR)
 		{
-			if (fileName != L"." && fileName != L"..")
-			{
-				ProcessDir(inputBaseDirName, filePathRel, xmlRootNode,
-					country, baseURL, baseUrlType, fileUrlBase, currentDate, ctx, flags);
-			}
+			ProcessDir(inputBaseDirName, filePathRel, xmlRootNode,
+				country, baseURL, baseUrlType, fileUrlBase, currentDate, ctx, flags);
 		}
 		else
 		{
@@ -170,12 +186,12 @@ void ProcessDir( wstring const& inputBaseDirName,
 			wstring filePathAbs;
 			{
 				wostringstream buf;
-				buf << inputDirName << L"/" << file.name;
+				buf << inputDirName << L"/" << fileName;
 				filePathAbs = buf.str();
 			}
 
 			if (wantVerbose)
-				wcout << setw(ctx.dirDepth-1) << setfill(L'|') << L" " << file.name;
+				wcout << setw(ctx.dirDepth-1) << setfill(L'|') << L" " << fileName;
 
 			pugi::xml_node xmlFileNode = xmlRootNode.append_child(L"file");
 			xmlFileNode.append_attribute(L"name")
@@ -418,11 +434,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 			if(wantVerbose)
 				wcout << endl;
 		} // end file
-
-		tinydir_next(&inputDir);
 	} // end files in this directory
-
-	tinydir_close(&inputDir);
 
 	--ctx.dirDepth;
 }
