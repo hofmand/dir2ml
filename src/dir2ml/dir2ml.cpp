@@ -450,6 +450,7 @@ int wmain( int argc, wchar_t **argv )
 
 	process_dir_flags_t flags(FLAG_DEFAULT);
 
+	// Process arguments (stage 1)
 	for(int a = 1; a < argc; ++a)
 	{
 		bool validArg(false);
@@ -587,6 +588,7 @@ int wmain( int argc, wchar_t **argv )
 		}
 	}
 
+	// Process arguments (stage 2)
 	wstring baseUrlType;
 	if (!wantHelp && !invalidArgs)
 	{
@@ -605,7 +607,7 @@ int wmain( int argc, wchar_t **argv )
 		}
 
 		// Base URL
-		if(flags & FLAG_BASE_URL)
+		if (flags & FLAG_BASE_URL)
 		{
 			auto i = baseURL.find(L"://"); // e.g. ftp://www.example.com
 			if (i != wstring::npos)
@@ -665,39 +667,36 @@ int wmain( int argc, wchar_t **argv )
 			fileUrlBase = fs::path(L"file:").append(canonicalName);
 			replace(fileUrlBase.begin(), fileUrlBase.end(), L'\\', L'/');
 		} // end FLAG_FILE
+
+		// Country code
+		if (!country.empty() && country.size() != 2)
+		{
+			wcerr << "Invalid country code \"" << country << "\"!" << endl;
+			invalidArgs = true;
+		}
+
+		// Output filename
+		if (outFileName.empty())
+		{
+			wcerr << L"Missing output filename!" << endl;
+			invalidArgs = true;
+		}
 	}
 
-	// Country code
-	if (!country.empty() && country.size() != 2)
-	{
-		wcerr << "Invalid country code \"" << country << "\"!" << endl;
-		invalidArgs = true;
-	}
-
-	// Output filename
-	if (outFileName.empty())
-	{
-		wcerr << L"Missing output filename!" << endl;
-		invalidArgs = true;
-	}
-
-	if (invalidArgs)
-	{
+	if (invalidArgs && !wantHelp)
 		wcout << L"\nTry:\t" << APP_NAME << " --help" << endl;
-		return EXIT_FAILURE;
-	}
 
 	if (wantHelp)
 	{
 		wcout << L"Usage:\n"
 			<< L"\n"
-			<< L" dir2ml --help\n"
-			<< L" dir2ml --directory path [--base-url url] --output outfile [--country code] [--verbose]\n"
-			<< L" dir2ml -d directory-path -u base-url -o outfile [-c country-code] [-v]\n"
+			<< L" " << APP_NAME << " --help\n"
+			<< L" " << APP_NAME << " --directory path [--base-url url] --output outfile [--country code] [--verbose]\n"
+			<< L" " << APP_NAME << " -d directory-path -u base-url -o outfile [-c country-code] [-v]\n"
 			<< L"\n"
 			<< L"Example usage:\n"
 			<< L"\n"
-			<< L" dir2ml -d ./MyMirror -u ftp://ftp.example.com -c us --sha256 -o MyMirror.meta4\n"
+			<< L" " << APP_NAME << " -d ./MyMirror -u ftp://ftp.example.com -c us --sha256 -o MyMirror.meta4\n"
 			<< L"\n"
 			<< L"Required Arguments:\n"
 			<< L"\n"
@@ -711,7 +710,7 @@ int wmain( int argc, wchar_t **argv )
 			<< L" -c, --country country-code - ISO3166-1 alpha-2 two letter country code of the server specified by base-url above\n"
 			<< L" -h, --help - Show this screen\n"
 			<< L" -s, --show-statistics - Show statistics at the end of processing\n"
-			<< L" -u, --base-url base-url - The base/root URL of an online directory containing the files. For example, ftp://ftp.example.com. dir2ml will append the relative path of each file to the base-url.\n"
+			<< L" -u, --base-url base-url - The base/root URL of an online directory containing the files. For example, ftp://ftp.example.com. " << APP_NAME << " will append the relative path of each file to the base-url.\n"
 			<< L" -f, --file - Add a local source for the file, using the directory specified by `--directory` prepended by `file://`. This is useful for fingerprinting a directory or hard drive."
 			<< L"   Note: on Windows, backslashes (\\) in the base-url will be replaced by forward slashes (/).\n"
 			<< L" -v, --verbose - Verbose output to stdout\n"
@@ -721,9 +720,12 @@ int wmain( int argc, wchar_t **argv )
 			<< L" --no-date - Don't output the date the .meta4 file was generated\n"
 			<< L" --ni-url - Output Named Information (RFC6920) links (experimental)\n"
 			<< L" --magnet-url - Output magnet links (experimental)" << endl;
-
-		return EXIT_SUCCESS;
 	}
+
+	if (invalidArgs)
+		return EXIT_FAILURE;
+	else if (wantHelp)
+		return EXIT_SUCCESS;
 
 	// <?xml version="1.0" encoding="UTF-8"?>
 	pugi::xml_document xmlDoc;

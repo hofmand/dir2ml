@@ -128,6 +128,7 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, `--ni-url`, or `--magne
 ## Also See
 * [Hash Archive](https://hash-archive.org/)
 * [HashMyFiles](https://www.nirsoft.net/utils/hash_my_files.html)
+* [OpenTimestamps](https://opentimestamps.org/)
 
 ## Built With
 * Microsoft Visual Studio 2015; targeting x64, Unicode
