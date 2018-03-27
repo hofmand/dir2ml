@@ -42,7 +42,7 @@ Another use-case is to use `dir2ml` to periodically [fingerprint](https://www.te
 
 ### Minimal Parameters
 
-**`dir2ml -d`** *path* **`-o`** *outfile* { `-f` | `--file-url` | `-u` | `--base-url` | `--ni-url` | `--magnet-url` }
+**`dir2ml -d`** *path* **`-o`** *outfile* { `-f` | `--file-url` | `-u` | `--base-url` | `--ni-url` }
 
 ### Example usage:
 
@@ -54,7 +54,7 @@ Another use-case is to use `dir2ml` to periodically [fingerprint](https://www.te
 
 **`-o`**, **`--output`** *outfile* - Output filename (`.meta4` or `.metalink`)
 
-If at least one of `-u`/`--base-url`, `-f`/`--file-url`, `--ni-url`, or `--magnet-url` must be supplied.
+If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be supplied.
 
 ### Optional Arguments:
 
@@ -83,8 +83,6 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, `--ni-url`, or `--magne
 **`--no-date`** - Don't output the date the `.meta4` file was generated
 
 **`--ni-url`** - Output Named Information ([RFC6920](https://tools.ietf.org/html/rfc6920)) links (experimental)
-
-**`--magnet-url`** - Output magnet links (experimental)
 
 ## Example Output File
 ```xml
@@ -115,6 +113,7 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, `--ni-url`, or `--magne
 * Only MD5, SHA-1, and SHA-256 hashes are currently supported. *(Do we need any others?)*
 
 ## Future Plans
+* Test both downloading and in-place seeding with aria2
 * Port the code to Linux/BSD
 * Filter by file size, type, etc.
 * Provide a means to merge and split `.meta4` files

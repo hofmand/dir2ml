@@ -88,13 +88,12 @@ constexpr process_dir_flags_t FLAG_SHA256       = 0x0008;
 constexpr process_dir_flags_t FLAG_NO_GENERATOR = 0x0010;
 constexpr process_dir_flags_t FLAG_NO_DATE      = 0x0020;
 constexpr process_dir_flags_t FLAG_NI_URL       = 0x0040;
-constexpr process_dir_flags_t FLAG_MAGNET_URL   = 0x0080;
 constexpr process_dir_flags_t FLAG_FILE_URL     = 0x0100;
 constexpr process_dir_flags_t FLAG_BASE_URL     = 0x0200;
 
 constexpr process_dir_flags_t FLAG_ALL_HASHES = FLAG_MD5 | FLAG_SHA1 | FLAG_SHA256;
 constexpr process_dir_flags_t FLAG_SPARSE_OUTPUT = FLAG_NO_GENERATOR | FLAG_NO_DATE;
-constexpr process_dir_flags_t FLAG_ALL_URL_TYPES = FLAG_NI_URL | FLAG_MAGNET_URL | FLAG_FILE_URL | FLAG_BASE_URL;
+constexpr process_dir_flags_t FLAG_ALL_URL_TYPES = FLAG_NI_URL | FLAG_FILE_URL | FLAG_BASE_URL;
 
 constexpr process_dir_flags_t FLAG_DEFAULT = FLAG_SHA256;
 
@@ -383,18 +382,6 @@ void ProcessDir( wstring const& inputBaseDirName,
 					xmlUrlNode.append_child(pugi::node_pcdata)
 						.set_value(url16.c_str());
 				}
-
-				// Magnet links
-				if ((flags & FLAG_MAGNET_URL) && (flags & FLAG_SHA256))
-				{
-					wostringstream buf;
-					buf << L"magnet:?xt=urn:sha256:" << sha256HashStr;
-
-					pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
-					xmlUrlNode.append_attribute(L"type").set_value(L"magnet");
-					xmlUrlNode.append_child(pugi::node_pcdata)
-						.set_value(buf.str().c_str());
-				}
 			} // end if any hashes enabled
 
 			// <url location="us">ftp://ftp.example.com/example.ext</url>
@@ -569,11 +556,6 @@ int wmain( int argc, wchar_t **argv )
 			flags |= FLAG_NI_URL;
 			validArg = true;
 		}
-		else if (argText == L"--magnet-url")
-		{
-			flags |= FLAG_MAGNET_URL;
-			validArg = true;
-		}
 		else if (argText == L"-f" || argText == L"--file-url")
 		{
 			flags |= FLAG_FILE_URL;
@@ -602,7 +584,7 @@ int wmain( int argc, wchar_t **argv )
 		// At least one URL type must be supplied
 		if ((flags & FLAG_ALL_URL_TYPES) == 0)
 		{
-			wcerr << L"Missing -u/--base-url, -f/--file-url, --ni-url, or --magnet-url!" << endl;
+			wcerr << L"Missing -u/--base-url, -f/--file-url, or --ni-url!" << endl;
 			invalidArgs = true;
 		}
 
@@ -703,7 +685,7 @@ int wmain( int argc, wchar_t **argv )
 			<< L" -d, --directory directory - The directory path to process\n"
 			<< L" -o, --output outfile - Output filename(.meta4 or .metalink)\n"
 			<< L"\n"
-			<< L"At least one of -u/--base-url, -f/--file-url, --ni-url, or --magnet-url must be supplied.\n"
+			<< L"At least one of -u/--base-url, -f/--file-url, or --ni-url must be supplied.\n"
 			<< L"\n"
 			<< L"Optional Arguments:\n"
 			<< L"\n"
@@ -718,8 +700,7 @@ int wmain( int argc, wchar_t **argv )
 			<< L" --sparse-output - combines --no-generator and --no-date to simplify diffs\n"
 			<< L" --no-generator - the name of the tool used to generate the .meta4 file\n"
 			<< L" --no-date - Don't output the date the .meta4 file was generated\n"
-			<< L" --ni-url - Output Named Information (RFC6920) links (experimental)\n"
-			<< L" --magnet-url - Output magnet links (experimental)" << endl;
+			<< L" --ni-url - Output Named Information (RFC6920) links (experimental)" << endl;
 	}
 
 	if (invalidArgs)
