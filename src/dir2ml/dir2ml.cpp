@@ -9,7 +9,6 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
-#include <set>
 #include <sstream>
 #include <stdlib.h>
 #include <sys/stat.h>  
@@ -867,25 +866,15 @@ int wmain( int argc, wchar_t **argv )
 		} // end SHA-256
 
 		{
-			// List URLs in order by type then value
-			set<wstring> urlTypes;
 			for (auto itUrl = itFile->urlToTypeMap.begin(); itUrl != itFile->urlToTypeMap.end(); ++itUrl)
-				urlTypes.insert(itUrl->second);
-			for (auto itUrlType = urlTypes.begin(); itUrlType != urlTypes.end(); ++itUrlType)
 			{
-				for (auto itUrl = itFile->urlToTypeMap.begin(); itUrl != itFile->urlToTypeMap.end(); ++itUrl)
-				{
-					if (itUrl->second != *itUrlType)
-						continue;
+				pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
+				if (!country.empty())
+					xmlUrlNode.append_attribute(L"location").set_value(country.c_str());
+				xmlUrlNode.append_attribute(L"type").set_value(itUrl->second.c_str());
 
-					pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
-					if (!country.empty())
-						xmlUrlNode.append_attribute(L"location").set_value(country.c_str());
-					xmlUrlNode.append_attribute(L"type").set_value(itUrl->second.c_str());
-
-					xmlUrlNode.append_child(pugi::node_pcdata)
-						.set_value(itUrl->first.c_str());
-				}
+				xmlUrlNode.append_child(pugi::node_pcdata)
+					.set_value(itUrl->first.c_str());
 			}
 		}
 	} // end iterating through all files
