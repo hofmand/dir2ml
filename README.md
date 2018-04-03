@@ -3,7 +3,7 @@ A command line tool to create metalink ([RFC5854](https://tools.ietf.org/html/rf
 
 This tool, `dir2ml`, will create a single UTF-8 metalink file from a supplied directory and base URL, with one `file` record per file, sorted purely [ASCIIbetically](https://en.wiktionary.org/wiki/ASCIIbetical) by path. The metalink file is an XML format so it can be rendered in a variety of ways using ordinary tools such as XML transformation utilities operating on XML stylesheets (`.xslt`). See an [example](#example-output-file) of this file format below.
 
-Later, when the original storage location of the files goes offline, the `.meta4` file can be used to identify and locate those files by hash on other servers or by P2P *(try [aria2](https://aria2.github.io/))*, and to reconstruct the original file structures.
+Later, when the original storage location of the files goes offline, the `.meta4` file can be used to identify and locate those files by hash on other servers or by P2P, and to reconstruct the original file structures.
 
 Try it! Run `dir2ml.exe` on your own computer's download directory, open the `.meta4` file it generates, and search on your favorite search engine for some of the hashes. *You might have the best luck with MD5 hashes of `.tar.gz` files but as metalinks become more ubiquitous, it will become easier to locate other lost files.*
 
@@ -115,7 +115,6 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 * Only MD5, SHA-1, and SHA-256 hashes are currently supported. *(Do we need any others?)*
 
 ## Future Plans
-* Test both downloading and in-place seeding with aria2
 * Port the code to Linux/BSD
 * Filter by file size, type, etc.
 * Provide a means to merge and split `.meta4` files
