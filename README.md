@@ -76,13 +76,15 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 
 **`--hash-type`** *hash-list* - Calculate and output all of the hashes specified by *hash-list* (comma-separated). Available hash functions are `md5`, `sha1`, and `sha256`. If none are specified, `sha256` is used.
 
-**`--sparse-output`** - combines `--no-generator` and `--no-date` to simplify diffs
+**`--consolidate-duplicates`** - Consolidate duplicate files into the same metalink `file` node instead of creating a new node.
+
+**`--sparse-output`** - Combines `--no-generator` and `--no-date` to simplify diffs
 
 **`--no-generator`** - Don't output the name and version of the tool used to generate the `.meta4` file
 
 **`--no-date`** - Don't output the date the `.meta4` file was generated
 
-**`--ni-url`** - Output Named Information ([RFC6920](https://tools.ietf.org/html/rfc6920)) links (experimental)
+**`--ni-url`** - Output Named Information ([RFC6920](https://tools.ietf.org/html/rfc6920)) links (experimental). Requires `--hash-type sha256`
 
 ## Example Output File
 ```xml
@@ -125,9 +127,11 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 * Add [xxHash](https://github.com/Cyan4973/xxHash) and/or [FarmHash](https://github.com/google/farmhash) algorithms
 
 ## Also See
-* [Hash Archive](https://hash-archive.org/)
-* [HashMyFiles](https://www.nirsoft.net/utils/hash_my_files.html)
-* [OpenTimestamps](https://opentimestamps.org/)
+* [Hash Archive](https://hash-archive.org/) - a database of file hashes (Linux `.iso` files, etc.).
+* [HashMyFiles](https://www.nirsoft.net/utils/hash_my_files.html) - an application similar to `dir2ml`.
+* [niemandsland](https://github.com/wiedi/niemandsland) - named information (NI, RFC6920) exchange.
+* [OpenTimestamps](https://opentimestamps.org/) - a service to store hashes in the blockchain.
+* [Redump.org](http://redump.org/) - a database of hashes of computer/console game dumps.
 
 ## Built With
 * Microsoft Visual Studio 2015; targeting x64, Unicode

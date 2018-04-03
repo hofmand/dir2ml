@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <stdlib.h>
 #include <sys/stat.h>  
@@ -88,6 +89,7 @@ constexpr process_dir_flags_t FLAG_SHA256       = 0x0008;
 constexpr process_dir_flags_t FLAG_NO_GENERATOR = 0x0010;
 constexpr process_dir_flags_t FLAG_NO_DATE      = 0x0020;
 constexpr process_dir_flags_t FLAG_NI_URL       = 0x0040;
+constexpr process_dir_flags_t FLAG_CONSOLIDATE  = 0x0800;
 constexpr process_dir_flags_t FLAG_FILE_URL     = 0x0100;
 constexpr process_dir_flags_t FLAG_BASE_URL     = 0x0200;
 
@@ -99,17 +101,69 @@ constexpr process_dir_flags_t FLAG_DEFAULT = FLAG_SHA256;
 
 constexpr size_t PROGRESS_MARKER_BYTES = 1000000; // 1MB (not MiB)
 
+struct fileNodeInfo
+{
+	wstring fileName;
+	wstring filePath;
+	uint_fast64_t fileSize;
+	wstring md5HashStr;
+	wstring sha1HashStr;
+	wstring sha256HashStr;
+	typedef map<wstring, wstring> url_to_type_map_t;
+	url_to_type_map_t urlToTypeMap;
+	wstring niStr;
+
+	fileNodeInfo() : fileSize(0) {}
+};
+
 struct ProcessDirContext
 {
-	ProcessDirContext() : numFiles(0), numBytes(0), dirDepth(0) {}
+	ProcessDirContext() : numFiles(0), numBytes(0), numDupes(0), numCollisions(0), dirDepth(0) {}
 
 	size_t numFiles;
 	uint_fast64_t numBytes;
+	size_t numDupes;
+	size_t numCollisions;
 	size_t dirDepth;
+
+	typedef list<fileNodeInfo> file_node_info_list_t;
+	file_node_info_list_t fileNodeInfoList;
+
+	typedef multimap<wstring, file_node_info_list_t::iterator> hash_to_filenode_map_t;
+	hash_to_filenode_map_t hashToFileNodeMap;
+
 };
 
 enum PATHTYPE { PATH_IS_FILE, PATH_IS_DIR };
 typedef map<wstring, PATHTYPE> PATH_NAME_TYPE_MAP;
+
+template<typename InputIterator1, typename InputIterator2>
+bool
+range_equal(InputIterator1 first1, InputIterator1 last1,
+	InputIterator2 first2, InputIterator2 last2)
+{
+	while (first1 != last1 && first2 != last2)
+	{
+		if (*first1 != *first2) return false;
+		++first1;
+		++first2;
+	}
+	return (first1 == last1) && (first2 == last2);
+}
+
+// files_identical() returns true if they contain the same content
+bool files_identical(const wstring& filename1, const wstring& filename2)
+{
+	ifstream file1(filename1);
+	ifstream file2(filename2);
+
+	istreambuf_iterator<char> begin1(file1);
+	istreambuf_iterator<char> begin2(file2);
+
+	istreambuf_iterator<char> end;
+
+	return range_equal(begin1, end, begin2, end);
+}
 
 void ProcessDir( wstring const& inputBaseDirName,
                  wstring const& inputDirSuffixName,
@@ -192,12 +246,12 @@ void ProcessDir( wstring const& inputBaseDirName,
 			if (wantVerbose)
 				wcout << setw(ctx.dirDepth-1) << setfill(L'|') << L" " << fileName;
 
-			pugi::xml_node xmlFileNode = xmlRootNode.append_child(L"file");
-			xmlFileNode.append_attribute(L"name")
-				.set_value(filePathRel.c_str());
+			fileNodeInfo thisNode;
+
+			thisNode.fileName = filePathRel;
+			thisNode.filePath = filePathAbs;
 
 			// <size>14471447</size>
-			uint_fast64_t fileSize(0);
 			ifstream inFile(filePathAbs, ifstream::ate | ifstream::binary);
 			{
 #ifdef WIN32
@@ -209,7 +263,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 					switch (_wstat64(filePathAbs.c_str(), &fileInfo))
 					{
 					case 0:
-						fileSize = fileInfo.st_size;
+						thisNode.fileSize = fileInfo.st_size;
 						break;
 					case ENOENT:
 						wcout << L"File \"" << filePathAbs << "\" not found!" << endl;
@@ -223,32 +277,38 @@ void ProcessDir( wstring const& inputBaseDirName,
 				// Not sure how to do the above in other operating systems
 				fileSize = inFile.tellg();
 #endif
-				xmlFileNode.append_child(L"size")
-					.append_child(pugi::node_pcdata)
-					.set_value(to_wstring(fileSize).c_str());
-				ctx.numBytes += fileSize;
+
+				ctx.numBytes += thisNode.fileSize;
 			}
 
-			if (!(flags & FLAG_NO_GENERATOR))
+			// <url location="us">ftp://ftp.example.com/example.ext</url>
+			if (flags & FLAG_BASE_URL)
 			{
-				// <generator>dir2ml/0.1.0</generator>
-				xmlFileNode.append_child(L"generator")
-					.append_child(pugi::node_pcdata)
-					.set_value((wstring(APP_NAME) + L"/" + VERSION_NO).c_str());
-			}
+				wostringstream buf;
+				buf << baseURL;
+				if (baseURL.back() != L'/')
+					buf << L"/";
+				buf << filePathRel;
 
-			if (!(flags & FLAG_NO_DATE))
+				thisNode.urlToTypeMap[buf.str()] = baseUrlType;
+			} // end <url>..</url>
+
+			  // <url location="us">ftp://ftp.example.com/example.ext</url>
+			if (flags & FLAG_FILE_URL)
 			{
-				// <updated>2010-05-01T12:15:02Z</updated>
-				xmlFileNode.append_child(L"updated")
-					.append_child(pugi::node_pcdata)
-					.set_value(currentDate.c_str());
-			}
+				wostringstream buf;
+				buf << fileUrlBase;
+				if (fileUrlBase.back() != L'/')
+					buf << L"/";
+				buf << filePathRel;
+
+				thisNode.urlToTypeMap[buf.str()] = L"file";
+			} // end <url>..</url>
 
 			// <hash type="md5">05c7d97c0e3a16ced35c2d9e4554f906</hash>
 			// <hash type="sha-1">a97fcf6ba9358f8a6f62beee4421863d3e52b080</hash>
 			// <hash type="sha-256">f0ad929cd259957e160ea442eb80986b5f01...</hash>
-			if (flags & FLAG_ALL_HASHES)
+			if (flags & (FLAG_ALL_HASHES|FLAG_CONSOLIDATE))
 			{
 				MD5_CTX ctxMD5;
 				md5_init(&ctxMD5);
@@ -281,7 +341,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 									bytesRead);
 							}
 
-							if (flags & FLAG_SHA256)
+							if ((flags & FLAG_SHA256 || flags & FLAG_CONSOLIDATE))
 							{
 								sha256_update(&ctxSHA_256,
 									reinterpret_cast<const uint8_t*>(&fileBuffer[0]),
@@ -299,14 +359,10 @@ void ProcessDir( wstring const& inputBaseDirName,
 				} // end scope
 
 				// MD5
-				wstring md5HashStr;
 				static vector<uint8_t> md5Digest(MD5_BLOCK_SIZE);
 				fill(md5Digest.begin(), md5Digest.end(), 0);
 				if (flags & FLAG_MD5)
 				{
-					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
-					xmlHashNode.append_attribute(L"type").set_value(L"md5");
-
 					wostringstream buf;
 					{
 						md5_final(&ctxMD5, &md5Digest[0]);
@@ -314,20 +370,14 @@ void ProcessDir( wstring const& inputBaseDirName,
 							buf << hex << setw(2) << setfill(L'0') << md5Digest[i];
 					}
 
-					md5HashStr = buf.str();
-					xmlHashNode.append_child(pugi::node_pcdata)
-						.set_value(md5HashStr.c_str());
+					thisNode.md5HashStr = buf.str();
 				} // end MD5
 
 				// SHA-1
-				wstring sha1HashStr;
 				static vector<uint8_t> sha1Digest(SHA1_BLOCK_SIZE);
 				fill(sha1Digest.begin(), sha1Digest.end(), 0);
 				if (flags & FLAG_SHA1)
 				{
-					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
-					xmlHashNode.append_attribute(L"type").set_value(L"sha-1");
-
 					wostringstream buf;
 					{
 						sha1_final(&ctxSHA_1, &sha1Digest[0]);
@@ -335,20 +385,14 @@ void ProcessDir( wstring const& inputBaseDirName,
 							buf << hex << setw(2) << setfill(L'0') << sha1Digest[i];
 					}
 
-					sha1HashStr = buf.str();
-					xmlHashNode.append_child(pugi::node_pcdata)
-						.set_value(sha1HashStr.c_str());
+					thisNode.sha1HashStr = buf.str();
 				} // end SHA-1
 
 				// SHA-256
-				wstring sha256HashStr;
 				static vector<uint8_t> sha256Digest(SHA256_BLOCK_SIZE);
 				fill(sha256Digest.begin(), sha256Digest.end(), 0);
-				if (flags & FLAG_SHA256)
+				if (flags & (FLAG_SHA256 | FLAG_CONSOLIDATE))
 				{
-					pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
-					xmlHashNode.append_attribute(L"type").set_value(L"sha-256");
-
 					wostringstream buf;
 					{
 						sha256_final(&ctxSHA_256, &sha256Digest[0]);
@@ -356,10 +400,8 @@ void ProcessDir( wstring const& inputBaseDirName,
 							buf << hex << setw(2) << setfill(L'0') << sha256Digest[i];
 					}
 
-					sha256HashStr = buf.str();
-					xmlHashNode.append_child(pugi::node_pcdata)
-						.set_value(sha256HashStr.c_str());
-				} // end SHA-256
+					thisNode.sha256HashStr = buf.str();
+				}
 
 				// https://tools.ietf.org/html/rfc6920
 				// Example URL: ni:///sha-256;UyaQV-Ev4rdLoHyJJWCi11OHfrYv9E1aGQAlMO2X_-Q
@@ -371,52 +413,69 @@ void ProcessDir( wstring const& inputBaseDirName,
 					base64_encode(&sha256Digest[0],
 						reinterpret_cast<uint8_t*>(&url8[0]), sha256Digest.size(), 0);
 					url8.erase(url8.find_last_not_of("=")+1); // trim trailing "=" padding characters
-					url8.insert(0, "ni://sha-256;");
+					url8.insert(0, "sha-256;");
 
 					// Convert to Unicode for pugixml
 					wstring_convert<codecvt_utf8<wchar_t> > conv;
 					wstring url16 = conv.from_bytes(url8);
-						
-					pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
-					xmlUrlNode.append_attribute(L"type").set_value(L"ni");
-					xmlUrlNode.append_child(pugi::node_pcdata)
-						.set_value(url16.c_str());
+					thisNode.urlToTypeMap[url16] = L"ni";
 				}
+
+				if (flags & FLAG_CONSOLIDATE)
+				{
+					bool dupesFound(false);
+					auto itHashToFileNode = ctx.hashToFileNodeMap.find(thisNode.sha256HashStr);
+					while (itHashToFileNode != ctx.hashToFileNodeMap.end()
+						&& itHashToFileNode->first == thisNode.sha256HashStr)
+					{
+						if (itHashToFileNode->second->fileSize == thisNode.fileSize)
+						{
+							wcout << L"\n*** Possible duplicate: \"" << filePathAbs
+								<< L"\" and \"" << itHashToFileNode->second->filePath
+								<< L"\" have the same size and SHA-256 hash! Verifying byte by byte... ";
+
+							if (files_identical(itHashToFileNode->second->filePath,
+								thisNode.filePath))
+							{
+								dupesFound = true;
+								++ctx.numDupes;
+								wcout << L"confirmed." << endl;
+
+								// Add the URL(s) to the existing XML node
+								for (auto itUrl = thisNode.urlToTypeMap.begin();
+									itUrl != thisNode.urlToTypeMap.end(); ++itUrl)
+								{
+									itHashToFileNode->second->urlToTypeMap[itUrl->first] = itUrl->second;
+								}
+							}
+							else
+							{
+								++ctx.numCollisions;
+								wcout << L"busted! Congratulations, you found a SHA-256 collision!" << endl;
+							}
+						} // end hash and file size are identical
+
+						++itHashToFileNode;
+					}
+
+					if (dupesFound)
+					{
+						// Don't add this XML node
+						continue;
+					}
+					else
+					{
+						// Create a new entry in the file node info list
+						auto itList = ctx.fileNodeInfoList.insert(
+							ctx.fileNodeInfoList.end(), thisNode);
+
+						// Create a new entry in the hash-to-filename map
+						ctx.hashToFileNodeMap.insert(itHashToFileNode,
+							ProcessDirContext::hash_to_filenode_map_t::value_type
+							(thisNode.sha256HashStr, itList));
+					} // end if duplicates found
+				} // end consolidate-duplicates
 			} // end if any hashes enabled
-
-			// <url location="us">ftp://ftp.example.com/example.ext</url>
-			if(flags & FLAG_BASE_URL)
-			{
-				pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
-				if (!country.empty())
-					xmlUrlNode.append_attribute(L"location").set_value(country.c_str());
-				xmlUrlNode.append_attribute(L"type").set_value(baseUrlType.c_str());
-
-				wostringstream buf;
-				buf << baseURL;
-				if (baseURL.back() != L'/')
-					buf << L"/";
-				buf << filePathRel;
-
-				xmlUrlNode.append_child(pugi::node_pcdata)
-					.set_value(buf.str().c_str());
-			} // end <url>..</url>
-
-			// <url location="us">ftp://ftp.example.com/example.ext</url>
-			if(flags & FLAG_FILE_URL)
-			{
-				pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
-				xmlUrlNode.append_attribute(L"type").set_value(L"file");
-
-				wostringstream buf;
-				buf << fileUrlBase;
-				if (fileUrlBase.back() != L'/')
-					buf << L"/";
-				buf << filePathRel;
-
-				xmlUrlNode.append_child(pugi::node_pcdata)
-					.set_value(buf.str().c_str());
-			} // end <url>..</url>
 
 			if(wantVerbose)
 				wcout << endl;
@@ -508,7 +567,7 @@ int wmain( int argc, wchar_t **argv )
 			if (a < argc - 1)
 			{
 				++a;
-				std::wstringstream ss(argv[a]);
+				wstringstream ss(argv[a]);
 				while (ss.good())
 				{
 					wstring substr;
@@ -559,6 +618,11 @@ int wmain( int argc, wchar_t **argv )
 		else if (argText == L"-f" || argText == L"--file-url")
 		{
 			flags |= FLAG_FILE_URL;
+			validArg = true;
+		}
+		else if (argText == L"--consolidate-duplicates")
+		{
+			flags |= FLAG_CONSOLIDATE;
 			validArg = true;
 		}
 
@@ -663,6 +727,13 @@ int wmain( int argc, wchar_t **argv )
 			wcerr << L"Missing output filename!" << endl;
 			invalidArgs = true;
 		}
+
+		// ni
+		if( ((flags & FLAG_NI_URL) != 0) && ((flags & FLAG_SHA256) == 0) )
+		{
+			wcerr << L"--ni-url requires --hash-type sha256!" << endl;
+			invalidArgs = true;
+		}
 	}
 
 	if (invalidArgs && !wantHelp)
@@ -697,10 +768,11 @@ int wmain( int argc, wchar_t **argv )
 			<< L"   Note: on Windows, backslashes (\\) in the base-url will be replaced by forward slashes (/).\n"
 			<< L" -v, --verbose - Verbose output to stdout\n"
 			<< L" --hash-type hash-list - Calculate and output hash-list (comma-separated). Available hashes are md5, sha1, and sha256. If none are specified, sha256 is used.\n"
-			<< L" --sparse-output - combines --no-generator and --no-date to simplify diffs\n"
-			<< L" --no-generator - the name of the tool used to generate the .meta4 file\n"
+			<< L" --consolidate-duplicates - Consolidate duplicate files into the same metalink `file` node instead of creating a new node.\n"
+			<< L" --sparse-output - Combines --no-generator and --no-date to simplify diffs\n"
+			<< L" --no-generator - The name of the tool used to generate the .meta4 file\n"
 			<< L" --no-date - Don't output the date the .meta4 file was generated\n"
-			<< L" --ni-url - Output Named Information (RFC6920) links (experimental)" << endl;
+			<< L" --ni-url - Output Named Information (RFC6920) links (experimental). Requires --hash-type sha256" << endl;
 	}
 
 	if (invalidArgs)
@@ -738,17 +810,102 @@ int wmain( int argc, wchar_t **argv )
 	auto startTick = GetTickCount64();
 
 	ProcessDirContext ctx;
-	ProcessDir(inputDirName, L"", xmlRootNode, country, baseURL, baseUrlType, fileUrlBase, currentDate, ctx, flags);
+	ProcessDir(inputDirName, L"", xmlRootNode, country, baseURL,
+		baseUrlType, fileUrlBase, currentDate, ctx, flags);
+
+	for(auto itFile = ctx.fileNodeInfoList.begin(); itFile != ctx.fileNodeInfoList.end(); ++itFile)
+	{
+		pugi::xml_node xmlFileNode = xmlRootNode.append_child(L"file");
+		xmlFileNode.append_attribute(L"name")
+			.set_value(itFile->fileName.c_str());
+
+		xmlFileNode.append_child(L"size")
+			.append_child(pugi::node_pcdata)
+			.set_value(to_wstring(itFile->fileSize).c_str());
+
+		if (!(flags & FLAG_NO_GENERATOR))
+		{
+			// <generator>dir2ml/0.1.0</generator>
+			xmlFileNode.append_child(L"generator")
+				.append_child(pugi::node_pcdata)
+				.set_value((wstring(APP_NAME) + L"/" + VERSION_NO).c_str());
+		}
+
+		if (!(flags & FLAG_NO_DATE))
+		{
+			// <updated>2010-05-01T12:15:02Z</updated>
+			xmlFileNode.append_child(L"updated")
+				.append_child(pugi::node_pcdata)
+				.set_value(currentDate.c_str());
+		}
+
+		if (flags & FLAG_MD5)
+		{
+			pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
+			xmlHashNode.append_attribute(L"type").set_value(L"md5");
+
+			xmlHashNode.append_child(pugi::node_pcdata)
+				.set_value(itFile->md5HashStr.c_str());
+		}
+
+		if (flags & FLAG_SHA1)
+		{
+			pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
+			xmlHashNode.append_attribute(L"type").set_value(L"sha-1");
+
+			xmlHashNode.append_child(pugi::node_pcdata)
+				.set_value(itFile->sha1HashStr.c_str());
+		}
+
+		if (flags & FLAG_SHA256)
+		{
+			pugi::xml_node xmlHashNode = xmlFileNode.append_child(L"hash");
+			xmlHashNode.append_attribute(L"type").set_value(L"sha-256");
+
+			xmlHashNode.append_child(pugi::node_pcdata)
+				.set_value(itFile->sha256HashStr.c_str());
+		} // end SHA-256
+
+		{
+			// List URLs in order by type then value
+			set<wstring> urlTypes;
+			for (auto itUrl = itFile->urlToTypeMap.begin(); itUrl != itFile->urlToTypeMap.end(); ++itUrl)
+				urlTypes.insert(itUrl->second);
+			for (auto itUrlType = urlTypes.begin(); itUrlType != urlTypes.end(); ++itUrlType)
+			{
+				for (auto itUrl = itFile->urlToTypeMap.begin(); itUrl != itFile->urlToTypeMap.end(); ++itUrl)
+				{
+					if (itUrl->second != *itUrlType)
+						continue;
+
+					pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
+					if (!country.empty())
+						xmlUrlNode.append_attribute(L"location").set_value(country.c_str());
+					xmlUrlNode.append_attribute(L"type").set_value(itUrl->second.c_str());
+
+					xmlUrlNode.append_child(pugi::node_pcdata)
+						.set_value(itUrl->first.c_str());
+				}
+			}
+		}
+	} // end iterating through all files
 
 	auto endTick = GetTickCount64();
 	if(wantStatistics)
 	{
 		double numSeconds = (endTick - startTick) / 1000.;
 		double Mbps = ((ctx.numBytes / 1e6) * 8) / numSeconds;
-		wcout << L"\n" << APP_NAME << L" processed " << ctx.numBytes << L" bytes"
-			<< L" in " << ctx.numFiles << L" files"
-			<< L" in " << numSeconds << L" seconds"
-			<< L" (" << Mbps << L" Mbps)." << endl;
+		wstring resultsTitle = wstring(APP_NAME) + L" v" + VERSION_NO + L" results:";
+		wcout << L"\n" << resultsTitle
+			<< L"\n" << setw(resultsTitle.length()) << setfill(L'=') << L"="
+			<< L"\n# of files: " << ctx.numFiles
+			<< L"\n# of bytes: " << ctx.numBytes
+			<< L"\n# of seconds: " << numSeconds
+			<< L"\nBitrate (Mbps): " << Mbps;
+		if (flags & FLAG_CONSOLIDATE)
+			wcout << L"\n# of duplicates: " << ctx.numDupes
+			<< L"\n# of SHA-256 collisions: " << ctx.numCollisions;
+		wcout << endl;
 	}
 
 	if (!xmlDoc.save_file(outFileName.c_str(), PUGIXML_TEXT("\t"),
