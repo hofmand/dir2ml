@@ -116,6 +116,7 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 
 ## Future Plans
 * Port the code to Linux/BSD
+* Generate additional metadata from [Image::ExifTool](https://www.sno.phy.queensu.ca/~phil/exiftool/#library), [uchardet](https://github.com/BYVoid/uchardet), etc.
 * Filter by file size, type, etc.
 * Provide a means to merge and split `.meta4` files
 * Multithreaded hashing
