@@ -476,6 +476,13 @@ void ProcessDir( wstring const& inputBaseDirName,
 				} // end consolidate-duplicates
 			} // end if any hashes enabled
 
+			if (!(flags & FLAG_CONSOLIDATE))
+			{
+				// Create a new entry in the file node info list
+				ctx.fileNodeInfoList.insert(
+					ctx.fileNodeInfoList.end(), thisNode);
+			}
+
 			if(wantVerbose)
 				wcout << endl;
 		} // end file
