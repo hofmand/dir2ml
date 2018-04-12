@@ -1,7 +1,7 @@
 # dir2ml
 A command line tool to create metalink ([RFC5854](https://tools.ietf.org/html/rfc5854)) files (`.meta4`/`.metalink`) from a directory structure on local storage, complete with multiple cryptographic hash options. The latest binary release for Windows x86 and x64 can be found [here](https://github.com/hofmand/dir2ml/releases).
 
-This tool, `dir2ml`, will create a single UTF-8 metalink file from a supplied directory and base URL, with one `file` record per file, sorted purely [ASCIIbetically](https://en.wiktionary.org/wiki/ASCIIbetical) by path to simplify diffs. The metalink file is an XML format so it can be rendered in a variety of ways using ordinary tools such as XML transformation utilities operating on XML stylesheets (`.xslt`). See an [example](#example-output-file) of this file format below.
+This tool, `dir2ml`, will create a single UTF-8 metalink file from a supplied directory and base URL, with one `file` record per file, sorted case-sensitive [ASCIIbetically](https://en.wiktionary.org/wiki/ASCIIbetical) by path to simplify diffs. The metalink file is an XML format so it can be rendered in a variety of ways using ordinary tools such as XML transformation utilities operating on XML stylesheets (`.xslt`). See an [example](#example-output-file) of this file format below.
 
 Later, when the original storage location of the files goes offline, the `.meta4` file can be used to identify and locate those files by hash on other servers or by P2P, and to reconstruct the original file structures.
 
@@ -133,7 +133,7 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 ## Also See
 * [Wikipedia: Comparison of file verification software](https://en.wikipedia.org/wiki/Comparison_of_file_verification_software)
 * [Corz Checksum](http://corz.org/windows/software/checksum/) - a Windows file hashing application (call `checksum.exe crs1` *directory-path* to get similar output to `dir2ml.exe --file-url --sparse-output --hash-type sha1 --show-statistics --directory` *directory-path* `--output` *outfile*
-  * *NB: `checksum.exe` processes files before subdirectories and `dir2ml.exe` processes files and directories in ASCIIbetical order*.
+  * *NB: `checksum.exe` processes files before subdirectories and `dir2ml.exe` processes files and directories in case-insensitive ASCIIbetical order*.
 * [Hash Archive](https://hash-archive.org/) - a database of file hashes (Linux `.iso` files, etc.).
 * [HashDeep](http://md5deep.sourceforge.net/) - a hashing utility that can output to Digital Forensics XML format.
 * [HashMyFiles](https://www.nirsoft.net/utils/hash_my_files.html) - an application similar to `dir2ml`.

@@ -31,7 +31,7 @@ extern "C" {
 #include "tinydir/tinydir.h"
 
 constexpr wchar_t* APP_NAME = L"dir2ml";
-constexpr wchar_t* VERSION_NO = L"0.5.0";
+constexpr wchar_t* VERSION_NO = L"0.5.1";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -133,8 +133,32 @@ struct ProcessDirContext
 
 };
 
+struct case_insensitive_compare
+{
+	bool operator()(std::wstring const& lhsIn, std::wstring const& rhsIn) const
+	{
+		wchar_t const* lhs = lhsIn.c_str();
+		wchar_t const* rhs = rhsIn.c_str();
+		for (; *lhs != L'\0' && *rhs != L'\0'; ++lhs, ++rhs)
+		{
+			if (tolower(*lhs) != tolower(*rhs))
+			{
+				return (tolower(*lhs) < tolower(*rhs));
+			}
+			else if (*lhs != *rhs)
+			{
+				if (*(lhs + 1) == L'\0' && *(rhs + 1) == L'\0')
+				{
+					return (*lhs < *rhs);
+				}
+			}
+		}
+		return (tolower(*lhs) < tolower(*rhs));
+	}
+};
+
 enum PATHTYPE { PATH_IS_FILE, PATH_IS_DIR };
-typedef map<wstring, PATHTYPE> PATH_NAME_TYPE_MAP;
+typedef map<wstring, PATHTYPE, case_insensitive_compare> PATH_NAME_TYPE_MAP; // sort alphabetically...
 
 template<typename InputIterator1, typename InputIterator2>
 bool
