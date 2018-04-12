@@ -1,15 +1,15 @@
 <?xml version="1.0"?>
 <!--
-dfxml2meta4.xslt - a stylesheet to convert a Digital Forensics XML file (such as the  to
+dfxml2meta4.xslt - a stylesheet to convert a Digital Forensics XML file to
 Metalinks (RFC5854) .meta4.
 
 Using the following hashdeep command to create the DFXML file:
 
-	hashdeep64 -r -c sha256 -d C:\MyFilesDir > MyHash.dfxml
+	hashdeep64 -r -j0 -c sha256 -d C:\MyFilesDir > MyHash.dfxml
 	
 Then the following SAXON command to convert the DFXML file to .meta4:
 
-	java -jar saxon9he.jar -s:MyHash.dfxml -xsl:dfxml2meta4.xslt -o:MyHash.meta4 baseDirectory="C:\MyFilesDir"
+	java -jar saxon9he.jar -s:MyHash.dfxml -xsl:dfxml2meta4.xslt -o:MyHash.meta4 baseDirectory="C:\MyFilesDir" baseUrl="http://www.example.com/"
 	
 Compare it with the output of dir2ml (removing the parentheses first):
 
@@ -24,16 +24,18 @@ Compare it with the output of dir2ml (removing the parentheses first):
 	<xsl:output method="xml" version="1.0" encoding="UTF-8" indent="yes" />
 
 	<xsl:param name="baseDirectory" />
+	<xsl:param name="baseUrl" />
 
 	<xsl:template match="/dfxml">
 		<xsl:text>&#xA;</xsl:text>
 		<metalink xmlns="urn:ietf:params:xml:ns:metalink" xmlns:nsi="http://www.w3.org/2001/XMLSchema-instance" noNamespaceSchemaLocation="metalink4.xsd">
 			<generator>dfxml2meta4.xslt</generator>
 			<xsl:for-each select="fileobject">
-			<xsl:text>&#xA;</xsl:text>
+				<xsl:variable name="relativePath" select="translate(substring-after(substring-after(filename,$baseDirectory),'\'),'\','/')" />
+				<xsl:text>&#xA;</xsl:text>
 				<file>
 					<xsl:attribute name="name">
-						<xsl:value-of select="translate(substring-after(substring-after(filename,$baseDirectory),'\'),'\','/')"/>
+						<xsl:value-of select="$relativePath"/>
 					</xsl:attribute>
 					<xsl:text>&#xA;</xsl:text>
 					<size>
@@ -73,6 +75,15 @@ Compare it with the output of dir2ml (removing the parentheses first):
 							</xsl:otherwise>
 						</xsl:choose>
 					</url>
+					<xsl:if test="$baseUrl">
+						<url>
+							<xsl:attribute name="type">
+								<xsl:value-of select="substring-before($baseUrl, '://')" />
+							</xsl:attribute>
+							<xsl:value-of select="$baseUrl" />
+							<xsl:value-of select="$relativePath" />
+						</url>
+					</xsl:if>
 				<xsl:text>&#xA;</xsl:text>
 			</file>
 			</xsl:for-each>
