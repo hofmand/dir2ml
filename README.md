@@ -133,9 +133,10 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 ## Also See
 * [Wikipedia: Comparison of file verification software](https://en.wikipedia.org/wiki/Comparison_of_file_verification_software)
 * [Corz Checksum](http://corz.org/windows/software/checksum/) - a Windows file hashing application (call `checksum.exe crs1` *directory-path* to get similar output to `dir2ml.exe --file-url --sparse-output --hash-type sha1 --show-statistics --directory` *directory-path* `--output` *outfile*
-  * *NB: `checksum.exe` processes files before subdirectories and `dir2ml.exe` processes files and directories in case-insensitive ASCIIbetical order*.
+  * *NB: `checksum.exe` processes files before subdirectories.*
 * [Hash Archive](https://hash-archive.org/) - a database of file hashes (Linux `.iso` files, etc.).
 * [HashDeep](http://md5deep.sourceforge.net/) - a hashing utility that can output to Digital Forensics XML format.
+  * *NB: `hashdeep` sorts the output in a non-trivial manner.*
 * [HashMyFiles](https://www.nirsoft.net/utils/hash_my_files.html) - an application similar to `dir2ml`.
 * [niemandsland](https://github.com/wiedi/niemandsland) - named information (NI, RFC6920) exchange.
 * [OpenTimestamps](https://opentimestamps.org/) - a service to store hashes in the blockchain.
