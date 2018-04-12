@@ -9,6 +9,8 @@ Try it! Run `dir2ml.exe` on your own computer's download directory, open the `.m
 
 Another use-case is to use `dir2ml` to periodically [fingerprint](https://www.technologyreview.com/s/402961/fingerprinting-your-files/) your hard drive onto a USB flash drive *(I recommend you use `--sparse-output --file-url` for that purpose)*, then if your hard drive starts to crash or if you're hit by ransomware, you can use any ordinary diff tool to compare two `.meta4` files and easily determine which files have changed and need to be restored from [backup](https://www.backblaze.com/blog/the-3-2-1-backup-strategy/). (*You have a backup, right?*)
 
+Also included are a schema file (`metalink4.xsd` copied from [here](https://github.com/antbryan/www/blob/master/schema/4.0/metalink4.xsd)) and a stylesheet (`dfxml2meta4.xslt`) that converts from a Digital Forensics XML file to `.meta4`.
+
 ---
 
 ## Table of Contents
@@ -126,15 +128,19 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 * Output the `.meta4` file directly to a `.zip` / `.rar` / `.7z` container, in order to save storage space
 * Convert [QuickHash](https://quickhash-gui.org/) output files to metalink files if possible (unless the developer decides to [output metalink files directly](https://quickhash-gui.org/bugs/output-in-rfc5854-format/))
 * Add [xxHash](https://github.com/Cyan4973/xxHash) and/or [FarmHash](https://github.com/google/farmhash) algorithms
+* Import from [SFV](https://en.wikipedia.org/wiki/Simple_file_verification) format.
 
 ## Also See
+* [Wikipedia: Comparison of file verification software](https://en.wikipedia.org/wiki/Comparison_of_file_verification_software)
 * [Corz Checksum](http://corz.org/windows/software/checksum/) - a Windows file hashing application (call `checksum.exe crs1` *directory-path* to get similar output to `dir2ml.exe --file-url --sparse-output --hash-type sha1 --show-statistics --directory` *directory-path* `--output` *outfile*
   * *NB: `checksum.exe` processes files before subdirectories and `dir2ml.exe` processes files and directories in ASCIIbetical order*.
 * [Hash Archive](https://hash-archive.org/) - a database of file hashes (Linux `.iso` files, etc.).
+* [HashDeep](http://md5deep.sourceforge.net/) - a hashing utility that can output to Digital Forensics XML format.
 * [HashMyFiles](https://www.nirsoft.net/utils/hash_my_files.html) - an application similar to `dir2ml`.
 * [niemandsland](https://github.com/wiedi/niemandsland) - named information (NI, RFC6920) exchange.
 * [OpenTimestamps](https://opentimestamps.org/) - a service to store hashes in the blockchain.
 * [Redump.org](http://redump.org/) - a database of hashes of computer/console game dumps.
+* [RHash](https://github.com/rhash/RHash) - another hashing utility.
 
 ## Built With
 * Microsoft Visual Studio 2015; targeting x64, Unicode
