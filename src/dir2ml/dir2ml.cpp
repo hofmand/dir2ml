@@ -31,7 +31,7 @@ extern "C" {
 #include "tinydir/tinydir.h"
 
 constexpr wchar_t* APP_NAME = L"dir2ml";
-constexpr wchar_t* VERSION_NO = L"0.5.1";
+constexpr wchar_t* VERSION_NO = L"0.6.0";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -85,15 +85,12 @@ constexpr process_dir_flags_t FLAG_VERBOSE      = 0x0001;
 constexpr process_dir_flags_t FLAG_MD5          = 0x0002;
 constexpr process_dir_flags_t FLAG_SHA1         = 0x0004;
 constexpr process_dir_flags_t FLAG_SHA256       = 0x0008;
-constexpr process_dir_flags_t FLAG_NO_GENERATOR = 0x0010;
-constexpr process_dir_flags_t FLAG_NO_DATE      = 0x0020;
-constexpr process_dir_flags_t FLAG_NI_URL       = 0x0040;
-constexpr process_dir_flags_t FLAG_CONSOLIDATE  = 0x0800;
-constexpr process_dir_flags_t FLAG_FILE_URL     = 0x0100;
-constexpr process_dir_flags_t FLAG_BASE_URL     = 0x0200;
+constexpr process_dir_flags_t FLAG_NI_URL       = 0x0010;
+constexpr process_dir_flags_t FLAG_CONSOLIDATE  = 0x0020;
+constexpr process_dir_flags_t FLAG_FILE_URL     = 0x0040;
+constexpr process_dir_flags_t FLAG_BASE_URL     = 0x0080;
 
 constexpr process_dir_flags_t FLAG_ALL_HASHES = FLAG_MD5 | FLAG_SHA1 | FLAG_SHA256;
-constexpr process_dir_flags_t FLAG_SPARSE_OUTPUT = FLAG_NO_GENERATOR | FLAG_NO_DATE;
 constexpr process_dir_flags_t FLAG_ALL_URL_TYPES = FLAG_NI_URL | FLAG_FILE_URL | FLAG_BASE_URL;
 
 constexpr process_dir_flags_t FLAG_DEFAULT = FLAG_SHA256;
@@ -195,7 +192,6 @@ void ProcessDir( wstring const& inputBaseDirName,
                  wstring const& baseURL,
                  wstring const& baseUrlType,
                  wstring const& fileUrlBase,
-                 wstring const& currentDate,
                  ProcessDirContext& ctx,
                  process_dir_flags_t flags )
 {
@@ -252,7 +248,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 		if (it->second == PATH_IS_DIR)
 		{
 			ProcessDir(inputBaseDirName, filePathRel, xmlRootNode,
-				country, baseURL, baseUrlType, fileUrlBase, currentDate, ctx, flags);
+				country, baseURL, baseUrlType, fileUrlBase, ctx, flags);
 		}
 		else
 		{
@@ -617,6 +613,11 @@ int wmain( int argc, wchar_t **argv )
 						flags |= FLAG_SHA256;
 						validArg = true;
 					}
+					else if (substr == L"all")
+					{
+						flags |= FLAG_ALL_HASHES;
+						validArg = true;
+					}
 					else
 					{
 						validArg = false;
@@ -624,21 +625,6 @@ int wmain( int argc, wchar_t **argv )
 					}
 				}
 			}
-		}
-		else if (argText == L"--sparse-output")
-		{
-			flags |= FLAG_SPARSE_OUTPUT;
-			validArg = true;
-		}
-		else if (argText == L"--no-generator")
-		{
-			flags |= FLAG_NO_GENERATOR;
-			validArg = true;
-		}
-		else if (argText == L"--no-date")
-		{
-			flags |= FLAG_NO_DATE;
-			validArg = true;
 		}
 		else if (argText == L"--ni-url")
 		{
@@ -797,11 +783,8 @@ int wmain( int argc, wchar_t **argv )
 			<< L" -f, --file - Add a local source for the file, using the directory specified by `--directory` prepended by `file://`. This is useful for fingerprinting a directory or hard drive."
 			<< L"   Note: on Windows, backslashes (\\) in the base-url will be replaced by forward slashes (/).\n"
 			<< L" -v, --verbose - Verbose output to stdout\n"
-			<< L" --hash-type hash-list - Calculate and output hash-list (comma-separated). Available hashes are md5, sha1, and sha256. If none are specified, sha256 is used.\n"
+			<< L" --hash-type hash-list - Calculate and output hash-list (comma-separated). Available hashes are md5, sha1, sha256, and all. If none are specified, sha256 is used.\n"
 			<< L" --consolidate-duplicates - Consolidate duplicate files into the same metalink `file` node instead of creating a new node.\n"
-			<< L" --sparse-output - Combines --no-generator and --no-date to simplify diffs\n"
-			<< L" --no-generator - The name of the tool used to generate the .meta4 file\n"
-			<< L" --no-date - Don't output the date the .meta4 file was generated\n"
 			<< L" --ni-url - Output Named Information (RFC6920) links (experimental). Requires --hash-type sha256" << endl;
 	}
 
@@ -826,22 +809,82 @@ int wmain( int argc, wchar_t **argv )
 	xmlRootNode.append_attribute(L"xsi:noNamespaceSchemaLocation")
 		.set_value(L"metalink4.xsd");
 
-	wstring currentDate;
+	// <generator>dir2ml/0.1.0</generator>
 	{
-		time_t now;
-		time(&now);
-		wchar_t buf[sizeof L"2011-10-08T07:07:09Z"];
-		struct tm newTime;
-		gmtime_s(&newTime, &now);
-		wcsftime(buf, sizeof buf, L"%FT%TZ", &newTime);
-		currentDate = buf;
+		xmlRootNode.append_child(L"generator")
+			.append_child(pugi::node_pcdata)
+			.set_value((wstring(APP_NAME) + L"/" + VERSION_NO).c_str());
+	}
+
+	// <published>2010-05-01T12:15:02Z</published>
+	{
+		wstring currentDate;
+		{
+			time_t now;
+			time(&now);
+			wchar_t buf[sizeof L"2011-10-08T07:07:09Z"];
+			struct tm newTime;
+			gmtime_s(&newTime, &now);
+			wcsftime(buf, sizeof buf, L"%FT%TZ", &newTime);
+			currentDate = buf;
+		}
+
+		xmlRootNode.append_child(L"published")
+			.append_child(pugi::node_pcdata)
+			.set_value(currentDate.c_str());
 	}
 
 	auto startTick = GetTickCount64();
 
 	ProcessDirContext ctx;
 	ProcessDir(inputDirName, L"", xmlRootNode, country, baseURL,
-		baseUrlType, fileUrlBase, currentDate, ctx, flags);
+		baseUrlType, fileUrlBase, ctx, flags);
+
+	auto endTick = GetTickCount64();
+
+	wstring statistics;
+	{
+		wostringstream buf;
+
+		double numSeconds = (endTick - startTick) / 1000.;
+		double Mbps = ((ctx.numBytes / 1e6) * 8) / numSeconds;
+		wstring resultsTitle = wstring(APP_NAME) + L" v" + VERSION_NO + L" results:";
+		buf << L"\n" << resultsTitle
+			<< L"\n" << setw(resultsTitle.length()) << setfill(L'=') << L"="
+			<< L"\n# of files: " << ctx.numFiles
+			<< L"\n# of bytes: " << ctx.numBytes
+			<< L"\n# of seconds: " << numSeconds
+			<< L"\nBitrate (Mbps): " << Mbps;
+		if (flags & FLAG_CONSOLIDATE)
+			buf << L"\n# of duplicates: " << ctx.numDupes
+			<< L"\n# of SHA-256 collisions: " << ctx.numCollisions;
+
+		statistics = buf.str();
+	}
+
+	if (wantStatistics)
+		wcout << statistics << endl;
+
+	// comments
+	{
+		wostringstream buf;
+		buf << L"\nArguments used:\n\t";
+		{
+			bool looped(false);
+			for (int a = 1; a < argc; ++a)
+			{
+				if (looped)
+					buf << L" ";
+				buf << argv[a];
+				looped = true;
+			}
+		}
+
+		buf << L"\n" << statistics << endl;
+
+		xmlDoc.insert_child_after(pugi::node_comment, xmlDeclNode)
+			.set_value(buf.str().c_str());
+	}
 
 	for(auto itFile = ctx.fileNodeInfoList.begin(); itFile != ctx.fileNodeInfoList.end(); ++itFile)
 	{
@@ -852,22 +895,6 @@ int wmain( int argc, wchar_t **argv )
 		xmlFileNode.append_child(L"size")
 			.append_child(pugi::node_pcdata)
 			.set_value(to_wstring(itFile->fileSize).c_str());
-
-		if (!(flags & FLAG_NO_GENERATOR))
-		{
-			// <generator>dir2ml/0.1.0</generator>
-			xmlFileNode.append_child(L"generator")
-				.append_child(pugi::node_pcdata)
-				.set_value((wstring(APP_NAME) + L"/" + VERSION_NO).c_str());
-		}
-
-		if (!(flags & FLAG_NO_DATE))
-		{
-			// <updated>2010-05-01T12:15:02Z</updated>
-			xmlFileNode.append_child(L"updated")
-				.append_child(pugi::node_pcdata)
-				.set_value(currentDate.c_str());
-		}
 
 		if (flags & FLAG_MD5)
 		{
@@ -909,24 +936,6 @@ int wmain( int argc, wchar_t **argv )
 			}
 		}
 	} // end iterating through all files
-
-	auto endTick = GetTickCount64();
-	if(wantStatistics)
-	{
-		double numSeconds = (endTick - startTick) / 1000.;
-		double Mbps = ((ctx.numBytes / 1e6) * 8) / numSeconds;
-		wstring resultsTitle = wstring(APP_NAME) + L" v" + VERSION_NO + L" results:";
-		wcout << L"\n" << resultsTitle
-			<< L"\n" << setw(resultsTitle.length()) << setfill(L'=') << L"="
-			<< L"\n# of files: " << ctx.numFiles
-			<< L"\n# of bytes: " << ctx.numBytes
-			<< L"\n# of seconds: " << numSeconds
-			<< L"\nBitrate (Mbps): " << Mbps;
-		if (flags & FLAG_CONSOLIDATE)
-			wcout << L"\n# of duplicates: " << ctx.numDupes
-			<< L"\n# of SHA-256 collisions: " << ctx.numCollisions;
-		wcout << endl;
-	}
 
 	if (!xmlDoc.save_file(outFileName.c_str(), PUGIXML_TEXT("\t"),
 		pugi::format_default | pugi::format_write_bom

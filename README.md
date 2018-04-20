@@ -76,15 +76,9 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 
 **`-v`**, **`--verbose`** - Verbose output to `stdout`
 
-**`--hash-type`** *hash-list* - Calculate and output all of the hashes specified by *hash-list* (comma-separated). Available hash functions are `md5`, `sha1`, and `sha256`. If none are specified, `sha256` is used.
+**`--hash-type`** *hash-list* - Calculate and output all of the hashes specified by *hash-list* (comma-separated). Available hash functions are `md5`, `sha1`, `sha256`, and `all`. If none are specified, `sha256` is used.
 
 **`--consolidate-duplicates`** - Consolidate duplicate files into the same metalink `file` node instead of creating a new node.
-
-**`--sparse-output`** - Combines `--no-generator` and `--no-date` to simplify diffs
-
-**`--no-generator`** - Don't output the name and version of the tool used to generate the `.meta4` file
-
-**`--no-date`** - Don't output the date the `.meta4` file was generated
 
 **`--ni-url`** - Output Named Information ([RFC6920](https://tools.ietf.org/html/rfc6920)) links (experimental). Requires `--hash-type sha256`
 
@@ -92,17 +86,15 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <metalink xmlns="urn:ietf:params:xml:ns:metalink" xmlns:nsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="metalink4.xsd">
+  <generator>dir2ml/0.1.0</generator>
+  <published>2010-05-01T12:15:02Z</published>
   <file name="example.ext">
     <size>14471447</size>
-    <generator>dir2ml/0.1.0</generator>
-    <updated>2010-05-01T12:15:02Z</updated>
     <hash type="sha-256">17bfc4a6058d2d7d82db859c8b0528c6ab48d832fed620ed49fb3385dbf1684d</hash>
     <url location="us" type="ftp">ftp://ftp.example.com/example.ext</url>
   </file>
   <file name="subdir/example2.ext">
     <size>14471447</size>
-    <generator>dir2ml/0.1.0</generator>
-    <updated>2010-05-01T12:15:02Z</updated>
     <hash type="sha-256">f44bcce2a9c2aa3f73ddc853ad98f87cd8e7cee5b5c18719ebb220da3fd4dbc9</hash>
     <url location="us" type="ftp">ftp://ftp.example.com/subdir/example2.ext</url>
   </file>
@@ -132,10 +124,10 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 
 ## Also See
 * [Wikipedia: Comparison of file verification software](https://en.wikipedia.org/wiki/Comparison_of_file_verification_software)
-* [Corz Checksum](http://corz.org/windows/software/checksum/) - a Windows file hashing application (call `checksum.exe crs1` *directory-path* to get similar output to `dir2ml.exe --file-url --sparse-output --hash-type sha1 --show-statistics --directory` *directory-path* `--output` *outfile*
+* [Corz Checksum](http://corz.org/windows/software/checksum/) - a Windows file hashing application (call `checksum.exe crs1` *directory-path* to get similar output to `dir2ml.exe --file-url --hash-type sha1 --directory` *directory-path* `--output` *outfile*)
   * *NB: `checksum.exe` processes files before subdirectories.*
 * [Hash Archive](https://hash-archive.org/) - a database of file hashes (Linux `.iso` files, etc.).
-* [HashDeep](http://md5deep.sourceforge.net/) - a hashing utility that can output to Digital Forensics XML format.
+* [HashDeep](http://md5deep.sourceforge.net/) - a hashing utility that can output to Digital Forensics XML format (call `hashdeep64 -r -j0 -c sha256 -d` *directory-path* `>` *outfile* to get similar output to `dir2ml.exe --file-url --hash-type sha256 --directory` *directory-path* `--output` *outfile*)
   * *NB: `hashdeep` sorts the output in a non-trivial manner.*
 * [HashMyFiles](https://www.nirsoft.net/utils/hash_my_files.html) - an application similar to `dir2ml`.
 * [niemandsland](https://github.com/wiedi/niemandsland) - named information (NI, RFC6920) exchange.
