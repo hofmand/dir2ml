@@ -31,7 +31,7 @@ extern "C" {
 #include "tinydir/tinydir.h"
 
 constexpr wchar_t* APP_NAME = L"dir2ml";
-constexpr wchar_t* VERSION_NO = L"0.6.0";
+constexpr wchar_t* VERSION_NO = L"0.6.1";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -101,6 +101,12 @@ constexpr size_t PROGRESS_MARKER_BYTES = 1000000; // 1MB (not MiB)
 
 struct fileNodeInfo
 {
+	fileNodeInfo()
+		: fileSize(0)
+		, urlToTypeMap(make_shared<url_to_type_map_t>())
+	{
+	}
+
 	wstring fileName;
 	wstring filePath;
 	uint_fast64_t fileSize;
@@ -108,19 +114,16 @@ struct fileNodeInfo
 	wstring sha1HashStr;
 	wstring sha256HashStr;
 	typedef map<wstring, wstring> url_to_type_map_t;
-	url_to_type_map_t urlToTypeMap;
+	shared_ptr<url_to_type_map_t> urlToTypeMap;
 	wstring niStr;
-
-	fileNodeInfo() : fileSize(0) {}
 };
 
 struct ProcessDirContext
 {
-	ProcessDirContext() : numFiles(0), numBytes(0), numDupes(0), numCollisions(0), dirDepth(0) {}
+	ProcessDirContext() : numFiles(0), numBytes(0), numCollisions(0), dirDepth(0) {}
 
 	size_t numFiles;
 	uint_fast64_t numBytes;
-	size_t numDupes;
 	size_t numCollisions;
 	size_t dirDepth;
 
@@ -311,7 +314,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 					buf << L"/";
 				buf << filePathRel;
 
-				thisNode.urlToTypeMap[buf.str()] = baseUrlType;
+				(*thisNode.urlToTypeMap.get())[buf.str()] = baseUrlType;
 			} // end <url>..</url>
 
 			  // <url location="us">ftp://ftp.example.com/example.ext</url>
@@ -323,7 +326,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 					buf << L"/";
 				buf << filePathRel;
 
-				thisNode.urlToTypeMap[buf.str()] = L"file";
+				(*thisNode.urlToTypeMap.get())[buf.str()] = L"file";
 			} // end <url>..</url>
 
 			// <hash type="md5">05c7d97c0e3a16ced35c2d9e4554f906</hash>
@@ -439,7 +442,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 					// Convert to Unicode for pugixml
 					wstring_convert<codecvt_utf8<wchar_t> > conv;
 					wstring url16 = conv.from_bytes(url8);
-					thisNode.urlToTypeMap[url16] = L"ni";
+					(*thisNode.urlToTypeMap.get())[url16] = L"ni";
 				}
 
 				if (flags & FLAG_FIND_OR_CONSOLIDATE_DUPES)
@@ -451,11 +454,11 @@ void ProcessDir( wstring const& inputBaseDirName,
 					{
 						if (itHashToFileNode->second->fileSize == thisNode.fileSize)
 						{
-							for (auto it = thisNode.urlToTypeMap.begin();
-								it != thisNode.urlToTypeMap.end(); ++it)
+							for (auto it = (*thisNode.urlToTypeMap.get()).begin();
+								it != (*thisNode.urlToTypeMap.get()).end(); ++it)
 							{
-								if (itHashToFileNode->second->urlToTypeMap.find(it->first)
-									!= itHashToFileNode->second->urlToTypeMap.end())
+								if (itHashToFileNode->second->urlToTypeMap.get()->find(it->first)
+									!= itHashToFileNode->second->urlToTypeMap.get()->end())
 								{
 									foundDupes = true;
 									break;
@@ -463,11 +466,11 @@ void ProcessDir( wstring const& inputBaseDirName,
 							}
 							if (!foundDupes)
 							{
-								for (auto it = itHashToFileNode->second->urlToTypeMap.begin();
-									it != itHashToFileNode->second->urlToTypeMap.end(); ++it)
+								for (auto it = itHashToFileNode->second->urlToTypeMap.get()->begin();
+									it != itHashToFileNode->second->urlToTypeMap.get()->end(); ++it)
 								{
-									if (thisNode.urlToTypeMap.find(it->first)
-										!= thisNode.urlToTypeMap.end())
+									if (thisNode.urlToTypeMap.get()->find(it->first)
+										!= thisNode.urlToTypeMap.get()->end())
 									{
 										foundDupes = true;
 										break;
@@ -485,7 +488,6 @@ void ProcessDir( wstring const& inputBaseDirName,
 							if (foundDupes || files_identical(itHashToFileNode->second->filePath,
 								thisNode.filePath))
 							{
-								++ctx.numDupes;
 								if (!foundDupes)
 								{
 									foundDupes = true;
@@ -493,16 +495,14 @@ void ProcessDir( wstring const& inputBaseDirName,
 								}
 
 								// Add this node's URL(s) to the existing XML node
-								itHashToFileNode->second->urlToTypeMap.insert(
-									thisNode.urlToTypeMap.begin(),
-									thisNode.urlToTypeMap.end());
+								itHashToFileNode->second->urlToTypeMap.get()->insert(
+									thisNode.urlToTypeMap.get()->begin(),
+									thisNode.urlToTypeMap.get()->end());
 
 								if (flags & FLAG_FIND_DUPES)
 								{
 									// Add the existing XML node's URL(s) to this one
-									thisNode.urlToTypeMap.insert(
-										itHashToFileNode->second->urlToTypeMap.begin(),
-										itHashToFileNode->second->urlToTypeMap.end());
+									thisNode.urlToTypeMap = itHashToFileNode->second->urlToTypeMap;
 								}
 							}
 							else
@@ -834,8 +834,8 @@ int wmain( int argc, wchar_t **argv )
 			<< L"   Note: on Windows, backslashes (\\) in the base-url will be replaced by forward slashes (/).\n"
 			<< L" -v, --verbose - Verbose output to stdout\n"
 			<< L" --hash-type hash-list - Calculate and output hash-list (comma-separated). Available hashes are md5, sha1, sha256, and all. If none are specified, sha256 is used.\n"
-			<< L" --find-duplicates - Find duplicate files and add their URLs to each matching metalink `file` node.\n"
-			<< L" --consolidate-duplicates - Consolidate duplicate files into the same metalink `file` node instead of creating a new node. This does NOT preserve the original directory structure as duplicate nodes are removed.\n"
+			<< L" --find-duplicates - Add URLs from all duplicate files to each matching metalink `file` node.\n"
+			<< L" --consolidate-duplicates - Add duplicate URLs from all duplicate files to the first matching metalink `file` node and remove the other matching `file` nodes.\n"
 			<< L" --ni-url - Output Named Information (RFC6920) links (experimental). Requires --hash-type sha256" << endl;
 	}
 
@@ -907,8 +907,13 @@ int wmain( int argc, wchar_t **argv )
 			<< L"\n# of seconds: " << numSeconds
 			<< L"\nBitrate (Mbps): " << Mbps;
 		if (flags & FLAG_CONSOLIDATE)
-			buf << L"\n# of duplicates: " << ctx.numDupes
-			<< L"\n# of SHA-256 collisions: " << ctx.numCollisions;
+		{
+			buf << L"\n# of unique files: " << ctx.fileNodeInfoList.size()
+				<< L"\n# of duplicates: " << ctx.numFiles - ctx.fileNodeInfoList.size();
+		}
+
+		if (flags & FLAG_FIND_OR_CONSOLIDATE_DUPES)
+			buf << L"\n# of SHA-256 collisions: " << ctx.numCollisions;
 
 		statistics = buf.str();
 	}
@@ -975,7 +980,7 @@ int wmain( int argc, wchar_t **argv )
 		} // end SHA-256
 
 		{
-			for (auto itUrl = itFile->urlToTypeMap.begin(); itUrl != itFile->urlToTypeMap.end(); ++itUrl)
+			for (auto itUrl = itFile->urlToTypeMap.get()->begin(); itUrl != itFile->urlToTypeMap.get()->end(); ++itUrl)
 			{
 				pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
 				if (!country.empty())

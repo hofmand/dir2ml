@@ -78,7 +78,9 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 
 **`--hash-type`** *hash-list* - Calculate and output all of the hashes specified by *hash-list* (comma-separated). Available hash functions are `md5`, `sha1`, `sha256`, and `all`. If none are specified, `sha256` is used.
 
-**`--consolidate-duplicates`** - Consolidate duplicate files into the same metalink `file` node instead of creating a new node.
+**`--find-duplicates`** - Add URLs from all duplicate files to each matching metalink `file` node. This takes more time than `--consolidate-duplicates`.
+
+**`--consolidate-duplicates`** - Add duplicate URLs from all duplicate files to the first matching metalink `file` node and remove the other matching `file` nodes. This takes more time than without `--consolidate-duplicates`.
 
 **`--ni-url`** - Output Named Information ([RFC6920](https://tools.ietf.org/html/rfc6920)) links (experimental). Requires `--hash-type sha256`
 
