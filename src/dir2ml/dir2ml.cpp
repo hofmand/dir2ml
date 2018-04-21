@@ -87,11 +87,13 @@ constexpr process_dir_flags_t FLAG_SHA1         = 0x0004;
 constexpr process_dir_flags_t FLAG_SHA256       = 0x0008;
 constexpr process_dir_flags_t FLAG_NI_URL       = 0x0010;
 constexpr process_dir_flags_t FLAG_CONSOLIDATE  = 0x0020;
-constexpr process_dir_flags_t FLAG_FILE_URL     = 0x0040;
-constexpr process_dir_flags_t FLAG_BASE_URL     = 0x0080;
+constexpr process_dir_flags_t FLAG_FIND_DUPES   = 0x0040;
+constexpr process_dir_flags_t FLAG_FILE_URL     = 0x0080;
+constexpr process_dir_flags_t FLAG_BASE_URL     = 0x0100;
 
 constexpr process_dir_flags_t FLAG_ALL_HASHES = FLAG_MD5 | FLAG_SHA1 | FLAG_SHA256;
 constexpr process_dir_flags_t FLAG_ALL_URL_TYPES = FLAG_NI_URL | FLAG_FILE_URL | FLAG_BASE_URL;
+constexpr process_dir_flags_t FLAG_FIND_OR_CONSOLIDATE_DUPES = FLAG_CONSOLIDATE | FLAG_FIND_DUPES;
 
 constexpr process_dir_flags_t FLAG_DEFAULT = FLAG_SHA256;
 
@@ -327,7 +329,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 			// <hash type="md5">05c7d97c0e3a16ced35c2d9e4554f906</hash>
 			// <hash type="sha-1">a97fcf6ba9358f8a6f62beee4421863d3e52b080</hash>
 			// <hash type="sha-256">f0ad929cd259957e160ea442eb80986b5f01...</hash>
-			if (flags & (FLAG_ALL_HASHES|FLAG_CONSOLIDATE))
+			if (flags & (FLAG_ALL_HASHES|FLAG_FIND_OR_CONSOLIDATE_DUPES))
 			{
 				MD5_CTX ctxMD5;
 				md5_init(&ctxMD5);
@@ -360,7 +362,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 									bytesRead);
 							}
 
-							if ((flags & FLAG_SHA256 || flags & FLAG_CONSOLIDATE))
+							if ((flags & FLAG_SHA256 || flags & FLAG_FIND_OR_CONSOLIDATE_DUPES))
 							{
 								sha256_update(&ctxSHA_256,
 									reinterpret_cast<const uint8_t*>(&fileBuffer[0]),
@@ -410,7 +412,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 				// SHA-256
 				static vector<uint8_t> sha256Digest(SHA256_BLOCK_SIZE);
 				fill(sha256Digest.begin(), sha256Digest.end(), 0);
-				if (flags & (FLAG_SHA256 | FLAG_CONSOLIDATE))
+				if (flags & (FLAG_SHA256 | FLAG_FIND_OR_CONSOLIDATE_DUPES))
 				{
 					wostringstream buf;
 					{
@@ -440,31 +442,67 @@ void ProcessDir( wstring const& inputBaseDirName,
 					thisNode.urlToTypeMap[url16] = L"ni";
 				}
 
-				if (flags & FLAG_CONSOLIDATE)
+				if (flags & FLAG_FIND_OR_CONSOLIDATE_DUPES)
 				{
-					bool dupesFound(false);
+					bool foundDupes(false);
 					auto itHashToFileNode = ctx.hashToFileNodeMap.find(thisNode.sha256HashStr);
 					while (itHashToFileNode != ctx.hashToFileNodeMap.end()
 						&& itHashToFileNode->first == thisNode.sha256HashStr)
 					{
 						if (itHashToFileNode->second->fileSize == thisNode.fileSize)
 						{
-							wcout << L"\n*** Possible duplicate: \"" << filePathAbs
-								<< L"\" and \"" << itHashToFileNode->second->filePath
-								<< L"\" have the same size and SHA-256 hash! Verifying byte by byte... ";
+							for (auto it = thisNode.urlToTypeMap.begin();
+								it != thisNode.urlToTypeMap.end(); ++it)
+							{
+								if (itHashToFileNode->second->urlToTypeMap.find(it->first)
+									!= itHashToFileNode->second->urlToTypeMap.end())
+								{
+									foundDupes = true;
+									break;
+								}
+							}
+							if (!foundDupes)
+							{
+								for (auto it = itHashToFileNode->second->urlToTypeMap.begin();
+									it != itHashToFileNode->second->urlToTypeMap.end(); ++it)
+								{
+									if (thisNode.urlToTypeMap.find(it->first)
+										!= thisNode.urlToTypeMap.end())
+									{
+										foundDupes = true;
+										break;
+									}
+								}
+							}
 
-							if (files_identical(itHashToFileNode->second->filePath,
+							if (!foundDupes)
+							{
+								wcout << L"\n*** Possible duplicate: \"" << filePathAbs
+									<< L"\" and \"" << itHashToFileNode->second->filePath
+									<< L"\" have the same size and SHA-256 hash! Verifying byte by byte... ";
+							}
+
+							if (foundDupes || files_identical(itHashToFileNode->second->filePath,
 								thisNode.filePath))
 							{
-								dupesFound = true;
 								++ctx.numDupes;
-								wcout << L"confirmed." << endl;
-
-								// Add the URL(s) to the existing XML node
-								for (auto itUrl = thisNode.urlToTypeMap.begin();
-									itUrl != thisNode.urlToTypeMap.end(); ++itUrl)
+								if (!foundDupes)
 								{
-									itHashToFileNode->second->urlToTypeMap[itUrl->first] = itUrl->second;
+									foundDupes = true;
+									wcout << L"confirmed." << endl;
+								}
+
+								// Add this node's URL(s) to the existing XML node
+								itHashToFileNode->second->urlToTypeMap.insert(
+									thisNode.urlToTypeMap.begin(),
+									thisNode.urlToTypeMap.end());
+
+								if (flags & FLAG_FIND_DUPES)
+								{
+									// Add the existing XML node's URL(s) to this one
+									thisNode.urlToTypeMap.insert(
+										itHashToFileNode->second->urlToTypeMap.begin(),
+										itHashToFileNode->second->urlToTypeMap.end());
 								}
 							}
 							else
@@ -477,7 +515,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 						++itHashToFileNode;
 					}
 
-					if (dupesFound)
+					if (foundDupes && (flags & FLAG_CONSOLIDATE))
 					{
 						// Don't add this XML node
 						continue;
@@ -496,7 +534,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 				} // end consolidate-duplicates
 			} // end if any hashes enabled
 
-			if (!(flags & FLAG_CONSOLIDATE))
+			if (!(flags & FLAG_FIND_OR_CONSOLIDATE_DUPES))
 			{
 				// Create a new entry in the file node info list
 				ctx.fileNodeInfoList.insert(
@@ -636,6 +674,11 @@ int wmain( int argc, wchar_t **argv )
 			flags |= FLAG_FILE_URL;
 			validArg = true;
 		}
+		else if (argText == L"--find-duplicates")
+		{
+			flags |= FLAG_FIND_DUPES;
+			validArg = true;
+		}
 		else if (argText == L"--consolidate-duplicates")
 		{
 			flags |= FLAG_CONSOLIDATE;
@@ -750,6 +793,13 @@ int wmain( int argc, wchar_t **argv )
 			wcerr << L"--ni-url requires --hash-type sha256!" << endl;
 			invalidArgs = true;
 		}
+
+		// find/consolidate dupes
+		if ((flags & FLAG_FIND_OR_CONSOLIDATE_DUPES) == FLAG_FIND_OR_CONSOLIDATE_DUPES)
+		{
+			wcerr << L"--find-duplicates and --consolidate-duplicates are mutually exclusive!" << endl;
+			invalidArgs = true;
+		}
 	}
 
 	if (invalidArgs && !wantHelp)
@@ -784,7 +834,8 @@ int wmain( int argc, wchar_t **argv )
 			<< L"   Note: on Windows, backslashes (\\) in the base-url will be replaced by forward slashes (/).\n"
 			<< L" -v, --verbose - Verbose output to stdout\n"
 			<< L" --hash-type hash-list - Calculate and output hash-list (comma-separated). Available hashes are md5, sha1, sha256, and all. If none are specified, sha256 is used.\n"
-			<< L" --consolidate-duplicates - Consolidate duplicate files into the same metalink `file` node instead of creating a new node.\n"
+			<< L" --find-duplicates - Find duplicate files and add their URLs to each matching metalink `file` node.\n"
+			<< L" --consolidate-duplicates - Consolidate duplicate files into the same metalink `file` node instead of creating a new node. This does NOT preserve the original directory structure as duplicate nodes are removed.\n"
 			<< L" --ni-url - Output Named Information (RFC6920) links (experimental). Requires --hash-type sha256" << endl;
 	}
 
