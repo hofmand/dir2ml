@@ -200,6 +200,34 @@ bool files_identical(const wstring& filename1, const wstring& filename2)
 	return range_equal(begin1, end, begin2, end);
 }
 
+// https://stackoverflow.com/questions/154536/encode-decode-urls-in-c/17708801#17708801
+wstring url_encode(const wstring &value) {
+	wostringstream escaped;
+	escaped.fill(L'0');
+
+	wstring::size_type i = value.find(L"://");
+	escaped << value.substr(0, i+3); // "file://"
+
+	escaped << hex;
+
+	for (wstring::const_iterator it = value.begin()+i+3, n = value.end(); it != n; ++it) {
+		wstring::value_type c = (*it);
+
+		// Keep alphanumeric and other accepted characters intact
+		if (isalnum(c) || c == L'-' || c == L'_' || c == L'.' || c == L'~' || c == L'/' || c == L':') {
+			escaped << c;
+			continue;
+		}
+
+		// Any other characters are percent-encoded
+		escaped << uppercase;
+		escaped << L'%' << setw(2) << int((wchar_t)c);
+		escaped << nouppercase;
+	}
+
+	return escaped.str();
+}
+
 void ProcessDir( wstring const& inputBaseDirName,
                  wstring const& inputDirSuffixName,
                  pugi::xml_node& xmlRootNode,
@@ -1014,7 +1042,7 @@ int wmain( int argc, wchar_t **argv )
 					xmlUrlNode.append_attribute(L"location").set_value(country.c_str());
 
 				xmlUrlNode.append_child(pugi::node_pcdata)
-					.set_value(itUrl->c_str());
+					.set_value(url_encode(*itUrl).c_str());
 			}
 		}
 	} // end iterating through all files
