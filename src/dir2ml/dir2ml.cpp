@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -111,7 +112,7 @@ struct fileNodeInfo
 {
 	fileNodeInfo()
 		: fileSize(0)
-		, urlToTypeMap(make_shared<url_to_type_map_t>())
+		, urlSet(make_shared<url_set_t>())
 	{
 	}
 
@@ -122,8 +123,8 @@ struct fileNodeInfo
 	wstring md5HashStr;
 	wstring sha1HashStr;
 	wstring sha256HashStr;
-	typedef map<wstring, wstring> url_to_type_map_t;
-	shared_ptr<url_to_type_map_t> urlToTypeMap;
+	typedef set<wstring> url_set_t;
+	shared_ptr<url_set_t> urlSet;
 	wstring niStr;
 };
 
@@ -324,7 +325,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 					buf << L"/";
 				buf << filePathRel;
 
-				(*thisNode.urlToTypeMap.get())[buf.str()] = baseUrlType;
+				thisNode.urlSet.get()->insert(buf.str());
 			} // end <url>..</url>
 
 			  // <url location="us">ftp://ftp.example.com/example.ext</url>
@@ -336,7 +337,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 					buf << L"/";
 				buf << filePathRel;
 
-				(*thisNode.urlToTypeMap.get())[buf.str()] = L"file";
+				thisNode.urlSet.get()->insert(buf.str());
 			} // end <url>..</url>
 
 			// <hash type="md5">05c7d97c0e3a16ced35c2d9e4554f906</hash>
@@ -452,7 +453,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 					// Convert to Unicode for pugixml
 					wstring_convert<codecvt_utf8<wchar_t> > conv;
 					wstring url16 = conv.from_bytes(url8);
-					(*thisNode.urlToTypeMap.get())[url16] = L"ni";
+					thisNode.urlSet.get()->insert(url16);
 				}
 
 				if (flags & FLAG_FIND_OR_CONSOLIDATE_DUPES)
@@ -465,11 +466,11 @@ void ProcessDir( wstring const& inputBaseDirName,
 						if (itHashToFileNode->second->fileSize == thisNode.fileSize
 							&& ((flags & FLAG_IGNORE_DATE) || (itHashToFileNode->second->fileMTime == thisNode.fileMTime)) )
 						{
-							for (auto it = (*thisNode.urlToTypeMap.get()).begin();
-								it != (*thisNode.urlToTypeMap.get()).end(); ++it)
+							for (auto it = (*thisNode.urlSet.get()).begin();
+								it != (*thisNode.urlSet.get()).end(); ++it)
 							{
-								if (itHashToFileNode->second->urlToTypeMap.get()->find(it->first)
-									!= itHashToFileNode->second->urlToTypeMap.get()->end())
+								if (itHashToFileNode->second->urlSet.get()->find(*it)
+									!= itHashToFileNode->second->urlSet.get()->end())
 								{
 									foundDupes = true;
 									break;
@@ -477,11 +478,11 @@ void ProcessDir( wstring const& inputBaseDirName,
 							}
 							if (!foundDupes)
 							{
-								for (auto it = itHashToFileNode->second->urlToTypeMap.get()->begin();
-									it != itHashToFileNode->second->urlToTypeMap.get()->end(); ++it)
+								for (auto it = itHashToFileNode->second->urlSet.get()->begin();
+									it != itHashToFileNode->second->urlSet.get()->end(); ++it)
 								{
-									if (thisNode.urlToTypeMap.get()->find(it->first)
-										!= thisNode.urlToTypeMap.get()->end())
+									if (thisNode.urlSet.get()->find(*it)
+										!= thisNode.urlSet.get()->end())
 									{
 										foundDupes = true;
 										break;
@@ -509,14 +510,14 @@ void ProcessDir( wstring const& inputBaseDirName,
 								}
 
 								// Add this node's URL(s) to the existing XML node
-								itHashToFileNode->second->urlToTypeMap.get()->insert(
-									thisNode.urlToTypeMap.get()->begin(),
-									thisNode.urlToTypeMap.get()->end());
+								itHashToFileNode->second->urlSet.get()->insert(
+									thisNode.urlSet.get()->begin(),
+									thisNode.urlSet.get()->end());
 
 								if (flags & FLAG_FIND_DUPES)
 								{
 									// Add the existing XML node's URL(s) to this one
-									thisNode.urlToTypeMap = itHashToFileNode->second->urlToTypeMap;
+									thisNode.urlSet = itHashToFileNode->second->urlSet;
 								}
 							}
 							else
@@ -1006,15 +1007,14 @@ int wmain( int argc, wchar_t **argv )
 		} // end SHA-256
 
 		{
-			for (auto itUrl = itFile->urlToTypeMap.get()->begin(); itUrl != itFile->urlToTypeMap.get()->end(); ++itUrl)
+			for (auto itUrl = itFile->urlSet.get()->begin(); itUrl != itFile->urlSet.get()->end(); ++itUrl)
 			{
 				pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
 				if (!country.empty())
 					xmlUrlNode.append_attribute(L"location").set_value(country.c_str());
-				xmlUrlNode.append_attribute(L"type").set_value(itUrl->second.c_str());
 
 				xmlUrlNode.append_child(pugi::node_pcdata)
-					.set_value(itUrl->first.c_str());
+					.set_value(itUrl->c_str());
 			}
 		}
 	} // end iterating through all files
