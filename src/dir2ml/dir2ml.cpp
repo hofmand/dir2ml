@@ -11,8 +11,15 @@
 #include <map>
 #include <sstream>
 #include <stdlib.h>
+#include <sys/types.h>
 #include <sys/stat.h>  
 #include <vector>
+
+#ifdef _WIN32
+#define stat64 _wstat64
+#else // !defined WIN32
+#include <unistd.h>
+#endif
 
 #include "windows.h"
 
@@ -31,7 +38,7 @@ extern "C" {
 #include "tinydir/tinydir.h"
 
 constexpr wchar_t* APP_NAME = L"dir2ml";
-constexpr wchar_t* VERSION_NO = L"0.6.1";
+constexpr wchar_t* VERSION_NO = L"0.7.0";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -90,6 +97,7 @@ constexpr process_dir_flags_t FLAG_CONSOLIDATE  = 0x0020;
 constexpr process_dir_flags_t FLAG_FIND_DUPES   = 0x0040;
 constexpr process_dir_flags_t FLAG_FILE_URL     = 0x0080;
 constexpr process_dir_flags_t FLAG_BASE_URL     = 0x0100;
+constexpr process_dir_flags_t FLAG_IGNORE_DATE  = 0x0200;
 
 constexpr process_dir_flags_t FLAG_ALL_HASHES = FLAG_MD5 | FLAG_SHA1 | FLAG_SHA256;
 constexpr process_dir_flags_t FLAG_ALL_URL_TYPES = FLAG_NI_URL | FLAG_FILE_URL | FLAG_BASE_URL;
@@ -110,6 +118,7 @@ struct fileNodeInfo
 	wstring fileName;
 	wstring filePath;
 	uint_fast64_t fileSize;
+	__time64_t fileMTime;
 	wstring md5HashStr;
 	wstring sha1HashStr;
 	wstring sha256HashStr;
@@ -277,33 +286,34 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 			// <size>14471447</size>
 			ifstream inFile(filePathAbs, ifstream::ate | ifstream::binary);
+
+#ifdef _WIN32
+			// Use _wstat64 to make 32-bit windows build report the
+			// correct file size, because ifstream::tellg() is limited
+			// to 32 bits in 32-bit builds.
 			{
-#ifdef WIN32
-				// Use _wstat64 to make 32-bit windows build report the
-				// correct file size, because ifstream::tellg() is limited
-				// to 32 bits in 32-bit builds.
+				struct __stat64 fileInfo;
+				switch (stat64(filePathAbs.c_str(), &fileInfo))
 				{
-					struct __stat64 fileInfo;
-					switch (_wstat64(filePathAbs.c_str(), &fileInfo))
-					{
-					case 0:
-						thisNode.fileSize = fileInfo.st_size;
-						break;
-					case ENOENT:
-						wcout << L"File \"" << filePathAbs << "\" not found!" << endl;
-						return;
-					default:
-						wcout << L"Undefined error reading file \"" << filePathAbs << L"\"!" << endl;
-						return;
-					}
+				case 0:
+					thisNode.fileSize = fileInfo.st_size;
+					thisNode.fileMTime = fileInfo.st_mtime;
+					break;
+				case ENOENT:
+					wcout << L"File \"" << filePathAbs << "\" not found!" << endl;
+					return;
+				default:
+					wcout << L"Undefined error reading file \"" << filePathAbs << L"\"!" << endl;
+					return;
 				}
+			}
 #else
-				// Not sure how to do the above in other operating systems
-				fileSize = inFile.tellg();
+			// Not sure how to do the above in other operating systems
+			thisNode.fileSize = inFile.tellg();
+			thisNode.fileMTime = ?;
 #endif
 
-				ctx.numBytes += thisNode.fileSize;
-			}
+			ctx.numBytes += thisNode.fileSize;
 
 			// <url location="us">ftp://ftp.example.com/example.ext</url>
 			if (flags & FLAG_BASE_URL)
@@ -452,7 +462,8 @@ void ProcessDir( wstring const& inputBaseDirName,
 					while (itHashToFileNode != ctx.hashToFileNodeMap.end()
 						&& itHashToFileNode->first == thisNode.sha256HashStr)
 					{
-						if (itHashToFileNode->second->fileSize == thisNode.fileSize)
+						if (itHashToFileNode->second->fileSize == thisNode.fileSize
+							&& ((flags & FLAG_IGNORE_DATE) || (itHashToFileNode->second->fileMTime == thisNode.fileMTime)) )
 						{
 							for (auto it = (*thisNode.urlToTypeMap.get()).begin();
 								it != (*thisNode.urlToTypeMap.get()).end(); ++it)
@@ -482,7 +493,10 @@ void ProcessDir( wstring const& inputBaseDirName,
 							{
 								wcout << L"\n*** Possible duplicate: \"" << filePathAbs
 									<< L"\" and \"" << itHashToFileNode->second->filePath
-									<< L"\" have the same size and SHA-256 hash! Verifying byte by byte... ";
+									<< L"\" have the same size";
+								if (!(flags & FLAG_IGNORE_DATE))
+									wcout << L", last modified date,";
+								wcout << L" and SHA-256 hash! Verifying byte by byte... ";
 							}
 
 							if (foundDupes || files_identical(itHashToFileNode->second->filePath,
@@ -684,6 +698,11 @@ int wmain( int argc, wchar_t **argv )
 			flags |= FLAG_CONSOLIDATE;
 			validArg = true;
 		}
+		else if (argText == L"--ignore-file-dates")
+		{
+			flags |= FLAG_IGNORE_DATE;
+			validArg = true;
+		}
 
 		if (!validArg)
 		{
@@ -800,6 +819,12 @@ int wmain( int argc, wchar_t **argv )
 			wcerr << L"--find-duplicates and --consolidate-duplicates are mutually exclusive!" << endl;
 			invalidArgs = true;
 		}
+
+		if ((flags & FLAG_IGNORE_DATE) && !(flags & FLAG_FIND_OR_CONSOLIDATE_DUPES))
+		{
+			wcerr << L"--ignore-file-dates requires --find-duplicates or --consolidate-duplicates!" << endl;
+			invalidArgs = true;
+		}
 	}
 
 	if (invalidArgs && !wantHelp)
@@ -836,6 +861,7 @@ int wmain( int argc, wchar_t **argv )
 			<< L" --hash-type hash-list - Calculate and output hash-list (comma-separated). Available hashes are md5, sha1, sha256, and all. If none are specified, sha256 is used.\n"
 			<< L" --find-duplicates - Add URLs from all duplicate files to each matching metalink `file` node.\n"
 			<< L" --consolidate-duplicates - Add duplicate URLs from all duplicate files to the first matching metalink `file` node and remove the other matching `file` nodes.\n"
+			<< L" --ignore-file-dates - Ignore file \"last modified\" dates when finding or consolidating duplicates." << endl
 			<< L" --ni-url - Output Named Information (RFC6920) links (experimental). Requires --hash-type sha256" << endl;
 	}
 

@@ -78,9 +78,11 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 
 **`--hash-type`** *hash-list* - Calculate and output all of the hashes specified by *hash-list* (comma-separated). Available hash functions are `md5`, `sha1`, `sha256`, and `all`. If none are specified, `sha256` is used.
 
-**`--find-duplicates`** - Add URLs from all duplicate files to each matching metalink `file` node. This takes more time than `--consolidate-duplicates`.
+**`--find-duplicates`** - Add URLs from all duplicate files to *each* matching metalink `file` node. This **preserves the directory structure** (as does having neither `--find-duplicates` nor `--consolidate-duplicates` flags turned on) and **allows the directory structure to be rebuilt using identical files from directories other than the original directory**, but results in large `.meta4` file sizes and takes more time than `--consolidate-duplicates`. Use `--ignore-file-dates` in conjunction with `--find-duplicates` to reduce the `.meta4` file size **if preserving file dates is not important**.
 
-**`--consolidate-duplicates`** - Add duplicate URLs from all duplicate files to the first matching metalink `file` node and remove the other matching `file` nodes. This takes more time than without `--consolidate-duplicates`.
+**`--consolidate-duplicates`** - Add duplicate URLs from all duplicate files to the *first* matching metalink `file` node and remove the other matching `file` nodes. **This does *not* perfectly preserve the directory structure.** Running `dir2ml` with this flag turned on takes more time than without the flag but results in the smallest possible `.meta4` file sizes. Add `--ignore-file-dates` to consolidate duplicate files further by ignoring file modification times.
+
+**`--ignore-file-dates`** - Ignore file "last modified" dates when finding or consolidating duplicates. **This will *not* preserve file dates.** Turn this flag on when you care more about keeping the `.meta4` file small than about preserving file dates. Requires `--find-duplicates` or `--consolidate-duplicates`.
 
 **`--ni-url`** - Output Named Information ([RFC6920](https://tools.ietf.org/html/rfc6920)) links (experimental). Requires `--hash-type sha256`
 
