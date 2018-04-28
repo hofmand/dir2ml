@@ -7,3 +7,6 @@
 [submodule "crypto-algorithms"]
 	path = crypto-algorithms
 	url = https://github.com/B-Con/crypto-algorithms
+[submodule "uriparser"]
+	path = uriparser
+	url = https://github.com/uriparser/uriparser
