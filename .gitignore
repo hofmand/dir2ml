@@ -45,3 +45,4 @@
 *.tlog
 *.suo
 *.user
+src/bin/*

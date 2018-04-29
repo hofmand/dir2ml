@@ -9,7 +9,6 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
-#include <set>
 #include <sstream>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -18,8 +17,6 @@
 
 #ifdef _WIN32
 #define stat64 _wstat64
-#else // !defined WIN32
-#include <unistd.h>
 #endif
 
 #include "windows.h"
@@ -38,8 +35,11 @@ extern "C" {
 // https://github.com/cxong/tinydir
 #include "tinydir/tinydir.h"
 
+// https ://uriparser.github.io/
+#include "uriparser\Uri.h"
+
 constexpr wchar_t* APP_NAME = L"dir2ml";
-constexpr wchar_t* VERSION_NO = L"0.7.0";
+constexpr wchar_t* VERSION_NO = L"0.7.1";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -112,7 +112,7 @@ struct fileNodeInfo
 {
 	fileNodeInfo()
 		: fileSize(0)
-		, urlSet(make_shared<url_set_t>())
+		, urlMap(make_shared<url_to_scheme_map_t>())
 	{
 	}
 
@@ -123,15 +123,24 @@ struct fileNodeInfo
 	wstring md5HashStr;
 	wstring sha1HashStr;
 	wstring sha256HashStr;
-	typedef set<wstring> url_set_t;
-	shared_ptr<url_set_t> urlSet;
+	typedef map<wstring,wstring> url_to_scheme_map_t;
+	shared_ptr<url_to_scheme_map_t> urlMap;
 	wstring niStr;
 };
 
 struct ProcessDirContext
 {
-	ProcessDirContext() : numFiles(0), numBytes(0), numCollisions(0), dirDepth(0) {}
+	ProcessDirContext(fs::path const& rootDir)
+		: rootDir_(rootDir)
+		, numFiles(0)
+		, numBytes(0)
+		, numCollisions(0)
+		, dirDepth(0)
+	{
+		_ASSERTE(rootDir.wstring().back() == fs::path::preferred_separator);
+	}
 
+	const fs::path rootDir_;
 	size_t numFiles;
 	uint_fast64_t numBytes;
 	size_t numCollisions;
@@ -200,36 +209,43 @@ bool files_identical(const wstring& filename1, const wstring& filename2)
 	return range_equal(begin1, end, begin2, end);
 }
 
-// https://stackoverflow.com/questions/154536/encode-decode-urls-in-c/17708801#17708801
-wstring url_encode(const wstring &value) {
-	wostringstream escaped;
-	escaped.fill(L'0');
+// https://tools.ietf.org/html/rfc3986
+wstring url_encode(const wstring &fileName, const wstring& scheme)
+{
+	const size_t charsNeeded = 8 + 3 * fileName.size() + 1;
+	wchar_t* pBuffer = new wchar_t[charsNeeded];
 
-	wstring::size_type i = value.find(L"://");
-	escaped << value.substr(0, i+3); // "file://"
-
-	escaped << hex;
-
-	for (wstring::const_iterator it = value.begin()+i+3, n = value.end(); it != n; ++it) {
-		wstring::value_type c = (*it);
-
-		// Keep alphanumeric and other accepted characters intact
-		if (isalnum(c) || c == L'-' || c == L'_' || c == L'.' || c == L'~' || c == L'/' || c == L':') {
-			escaped << c;
-			continue;
-		}
-
-		// Any other characters are percent-encoded
-		escaped << uppercase;
-		escaped << L'%' << setw(2) << int((wchar_t)c);
-		escaped << nouppercase;
+	int retVal;
+	if (scheme.empty())
+#ifdef _WIN32
+		retVal = uriWindowsFilenameToUriStringW(fileName.c_str(), pBuffer);
+#else // !_WIN32
+		retVal = uriUnixFilenameToUriStringW(fileName.c_str(), pBuffer);
+#endif // !_WIN32
+	else
+	{
+		size_t i = fileName.find(L"://");
+		retVal = uriUnixFilenameToUriStringW(fileName.c_str() + i + 3, pBuffer);
+	}
+	
+	if(retVal != URI_SUCCESS)
+	{
+		wcerr << L"Failed to convert filename \"" << fileName << L"\" to URI!" << endl;
+		return fileName;
 	}
 
-	return escaped.str();
+	wstring encodedUrl;
+	if (scheme.empty())
+		encodedUrl = pBuffer;
+	else
+		encodedUrl = scheme + L"://" + pBuffer;
+	delete[] pBuffer;
+
+	return encodedUrl;
 }
 
-void ProcessDir( wstring const& inputBaseDirName,
-                 wstring const& inputDirSuffixName,
+// 'relativePath' is the directory path relative to ctx.rootDir_
+void ProcessDir( fs::path const& relativePath,
                  pugi::xml_node& xmlRootNode,
                  wstring const& country,
                  wstring const& baseURL,
@@ -240,9 +256,10 @@ void ProcessDir( wstring const& inputBaseDirName,
 {
 	bool wantVerbose = ((flags & FLAG_VERBOSE) != 0);
 
-	wstring inputDirName = inputBaseDirName;
-	if (!inputDirSuffixName.empty())
-		inputDirName += L"/" + inputDirSuffixName;
+	fs::path inputDirName = ctx.rootDir_;
+	inputDirName.append(relativePath);
+	if (inputDirName.wstring().back() != fs::path::preferred_separator)
+		inputDirName += fs::path::preferred_separator;
 
 	++ctx.dirDepth;
 
@@ -283,14 +300,14 @@ void ProcessDir( wstring const& inputBaseDirName,
 	for(auto it = pathContents.begin(); it != pathContents.end(); ++it)
 	{
 		wstring fileName = it->first;
-		wstring filePathRel = inputDirSuffixName;
-		if (!filePathRel.empty())
-			filePathRel += L"/";
+		fs::path filePathRel = relativePath;
+		if (!filePathRel.empty() && filePathRel.wstring().back() != fs::path::preferred_separator)
+			filePathRel += fs::path::preferred_separator;
 		filePathRel += fileName;
 
 		if (it->second == PATH_IS_DIR)
 		{
-			ProcessDir(inputBaseDirName, filePathRel, xmlRootNode,
+			ProcessDir(filePathRel, xmlRootNode,
 				country, baseURL, baseUrlType, fileUrlBase, ctx, flags);
 		}
 		else
@@ -298,19 +315,16 @@ void ProcessDir( wstring const& inputBaseDirName,
 			++ctx.numFiles;
 
 			// <file name="example.ext">
-			wstring filePathAbs;
-			{
-				wostringstream buf;
-				buf << inputDirName << L"/" << fileName;
-				filePathAbs = buf.str();
-			}
+			fs::path filePathAbs(inputDirName);
+			filePathAbs += fs::path::preferred_separator;
+			filePathAbs.append(fileName);
 
 			if (wantVerbose)
 				wcout << setw(ctx.dirDepth-1) << setfill(L'|') << L" " << fileName;
 
 			fileNodeInfo thisNode;
 
-			thisNode.fileName = filePathRel;
+			thisNode.fileName = fs::path(filePathRel).generic_wstring();
 			thisNode.filePath = filePathAbs;
 
 			// <size>14471447</size>
@@ -347,25 +361,24 @@ void ProcessDir( wstring const& inputBaseDirName,
 			// <url location="us">ftp://ftp.example.com/example.ext</url>
 			if (flags & FLAG_BASE_URL)
 			{
-				wostringstream buf;
-				buf << baseURL;
-				if (baseURL.back() != L'/')
-					buf << L"/";
-				buf << filePathRel;
+				fs::path filePathAbs(baseURL);
+				filePathAbs.append(filePathRel);
 
-				thisNode.urlSet.get()->insert(buf.str());
+				wstring::size_type i = baseURL.find(L"://");
+				wstring schemeName = baseURL.substr(0, i);
+
+				thisNode.urlMap.get()->insert(make_pair(filePathAbs.generic_wstring(), schemeName));
 			} // end <url>..</url>
 
-			  // <url location="us">ftp://ftp.example.com/example.ext</url>
+			// <url location="us">ftp://ftp.example.com/example.ext</url>
 			if (flags & FLAG_FILE_URL)
 			{
-				wostringstream buf;
-				buf << fileUrlBase;
-				if (fileUrlBase.back() != L'/')
-					buf << L"/";
-				buf << filePathRel;
+				fs::path fileUrlAbs = fileUrlBase;
+				fileUrlAbs += fs::path::preferred_separator;
+				fileUrlAbs += filePathRel;
 
-				thisNode.urlSet.get()->insert(buf.str());
+				thisNode.urlMap.get()->insert(
+					make_pair(fileUrlAbs.wstring(),wstring()));
 			} // end <url>..</url>
 
 			// <hash type="md5">05c7d97c0e3a16ced35c2d9e4554f906</hash>
@@ -481,7 +494,7 @@ void ProcessDir( wstring const& inputBaseDirName,
 					// Convert to Unicode for pugixml
 					wstring_convert<codecvt_utf8<wchar_t> > conv;
 					wstring url16 = conv.from_bytes(url8);
-					thisNode.urlSet.get()->insert(url16);
+					thisNode.urlMap.get()->insert(make_pair(url16,L"ni"));
 				}
 
 				if (flags & FLAG_FIND_OR_CONSOLIDATE_DUPES)
@@ -494,11 +507,11 @@ void ProcessDir( wstring const& inputBaseDirName,
 						if (itHashToFileNode->second->fileSize == thisNode.fileSize
 							&& ((flags & FLAG_IGNORE_DATE) || (itHashToFileNode->second->fileMTime == thisNode.fileMTime)) )
 						{
-							for (auto it = (*thisNode.urlSet.get()).begin();
-								it != (*thisNode.urlSet.get()).end(); ++it)
+							for (auto it = (*thisNode.urlMap.get()).begin();
+								it != (*thisNode.urlMap.get()).end(); ++it)
 							{
-								if (itHashToFileNode->second->urlSet.get()->find(*it)
-									!= itHashToFileNode->second->urlSet.get()->end())
+								if (itHashToFileNode->second->urlMap.get()->find(it->first)
+									!= itHashToFileNode->second->urlMap.get()->end())
 								{
 									foundDupes = true;
 									break;
@@ -506,11 +519,11 @@ void ProcessDir( wstring const& inputBaseDirName,
 							}
 							if (!foundDupes)
 							{
-								for (auto it = itHashToFileNode->second->urlSet.get()->begin();
-									it != itHashToFileNode->second->urlSet.get()->end(); ++it)
+								for (auto it = itHashToFileNode->second->urlMap.get()->begin();
+									it != itHashToFileNode->second->urlMap.get()->end(); ++it)
 								{
-									if (thisNode.urlSet.get()->find(*it)
-										!= thisNode.urlSet.get()->end())
+									if (thisNode.urlMap.get()->find(it->first)
+										!= thisNode.urlMap.get()->end())
 									{
 										foundDupes = true;
 										break;
@@ -538,14 +551,14 @@ void ProcessDir( wstring const& inputBaseDirName,
 								}
 
 								// Add this node's URL(s) to the existing XML node
-								itHashToFileNode->second->urlSet.get()->insert(
-									thisNode.urlSet.get()->begin(),
-									thisNode.urlSet.get()->end());
+								itHashToFileNode->second->urlMap.get()->insert(
+									thisNode.urlMap.get()->begin(),
+									thisNode.urlMap.get()->end());
 
 								if (flags & FLAG_FIND_DUPES)
 								{
 									// Add the existing XML node's URL(s) to this one
-									thisNode.urlSet = itHashToFileNode->second->urlSet;
+									thisNode.urlMap = itHashToFileNode->second->urlMap;
 								}
 							}
 							else
@@ -594,7 +607,8 @@ void ProcessDir( wstring const& inputBaseDirName,
 
 int wmain( int argc, wchar_t **argv )
 {
-	wstring inputDirName, baseURL, fileUrlBase, country, outFileName;
+	fs::path inputDirName;
+	wstring baseURL, fileUrlBase, country, outFileName;
 
 	bool invalidArgs(false);
 	bool wantHelp(false), wantStatistics(false), wantVerbose(false);
@@ -776,28 +790,13 @@ int wmain( int argc, wchar_t **argv )
 
 		if (flags & FLAG_FILE_URL)
 		{
-			// RFC1738 says, "A file URL takes the form: file://<host>/<path>"
-
-			// Input:  //server/share/file.ext
-			// Output: file://server/share/file.ext
-			//
-			// Input:  \\server\share\file.ext
-			// Output: file://server/share/file.ext
-			//
-			// Input:  C:\WINDOWS\clock.avi
-			// Output: file:///c:/WINDOWS/clock.avi
-			//
-			// Input:  file:///c:/WINDOWS/clock.avi
-			// Output: file:///c:/WINDOWS/clock.avi
-
 			// Append missing trailing "/" so fs::canonical() doesn't think it's a file
-			fileUrlBase = inputDirName;
-			if (fileUrlBase.back() != L'/' && fileUrlBase.back() != L'\\')
-				fileUrlBase += L"/";
+			if (inputDirName.wstring().back() != fs::path::preferred_separator)
+				inputDirName += fs::path::preferred_separator;
 
 			// Get the full path of base-url
 			error_code ec;
-			fs::path canonicalPath = fs::canonical(fileUrlBase, ec);
+			fileUrlBase = fs::canonical(inputDirName, ec);
 			if (ec)
 			{
 				wcerr << L"Can't get canonical path from \"" << inputDirName
@@ -805,20 +804,6 @@ int wmain( int argc, wchar_t **argv )
 				cerr << ec.message() << endl;
 				return EXIT_FAILURE;
 			}
-
-			// Prepend 'file://'
-			wstring canonicalName = canonicalPath;
-			{
-				// root-name can be "C:" or "//myserver"
-				wstring rootName = canonicalPath.root_name().wstring();
-				if (rootName.size() == 2 && rootName[1] == L':')
-				{
-					canonicalName[0] = tolower(canonicalName[0]);
-					canonicalName.insert(0, L"///");
-				}
-			}
-			fileUrlBase = fs::path(L"file:").append(canonicalName);
-			replace(fileUrlBase.begin(), fileUrlBase.end(), L'\\', L'/');
 		} // end FLAG_FILE
 
 		// Country code
@@ -942,8 +927,8 @@ int wmain( int argc, wchar_t **argv )
 
 	auto startTick = GetTickCount64();
 
-	ProcessDirContext ctx;
-	ProcessDir(inputDirName, L"", xmlRootNode, country, baseURL,
+	ProcessDirContext ctx(inputDirName);
+	ProcessDir(L"", xmlRootNode, country, baseURL,
 		baseUrlType, fileUrlBase, ctx, flags);
 
 	auto endTick = GetTickCount64();
@@ -1035,14 +1020,14 @@ int wmain( int argc, wchar_t **argv )
 		} // end SHA-256
 
 		{
-			for (auto itUrl = itFile->urlSet.get()->begin(); itUrl != itFile->urlSet.get()->end(); ++itUrl)
+			for (auto itUrl = itFile->urlMap.get()->begin(); itUrl != itFile->urlMap.get()->end(); ++itUrl)
 			{
 				pugi::xml_node xmlUrlNode = xmlFileNode.append_child(L"url");
 				if (!country.empty())
 					xmlUrlNode.append_attribute(L"location").set_value(country.c_str());
 
 				xmlUrlNode.append_child(pugi::node_pcdata)
-					.set_value(url_encode(*itUrl).c_str());
+					.set_value(url_encode(itUrl->first, itUrl->second).c_str());
 			}
 		}
 	} // end iterating through all files
