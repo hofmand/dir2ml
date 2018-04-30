@@ -28,9 +28,33 @@ Compare it with the output of dir2ml (removing the parentheses first):
 
 	<xsl:template name="encodeUrl">
 		<xsl:param name="url" />
-		<xsl:value-of select="replace(replace(replace(replace(replace(translate($url,'\','/'),' ','%20'),',','%2C'),'\(','%28'),'\)','%29'),'\+','%2B')"/>
+		<xsl:value-of select="replace(replace(replace(replace(replace(replace(replace(translate($url,'\','/'),' ','%20'),',','%2C'),'\(','%28'),'\)','%29'),'\+','%2B'),'@','%40'),'#','%23')"/>
 	</xsl:template>
+
 	<xsl:template match="/dfxml">
+		<xsl:text>&#xA;</xsl:text>
+		<xsl:comment>
+			<xsl:text>&#xA;</xsl:text>
+			<xsl:text>Arguments used:</xsl:text>
+			<xsl:text>&#xA;</xsl:text>
+			<xsl:text>&#x9;</xsl:text>
+			<xsl:if test="$baseDirectory != ''">
+				<xsl:text>baseDirectory=</xsl:text>
+				<xsl:value-of select="$baseDirectory"/>
+				<xsl:text> </xsl:text>
+			</xsl:if>
+			<xsl:if test="$baseUrl != ''">
+				<xsl:text>baseUrl=</xsl:text>
+				<xsl:value-of select="$baseUrl"/>
+			</xsl:if>
+			<xsl:text>&#xA;</xsl:text>
+			<xsl:text># of input files: </xsl:text>
+			<xsl:value-of select="format-number(count(fileobject), '###,###')"/>
+			<xsl:text>&#xA;</xsl:text>
+			<xsl:text># of input bytes: </xsl:text>
+			<xsl:value-of select="format-number(sum(fileobject/filesize), '###,###')"/>
+			<xsl:text>&#xA;</xsl:text>
+		</xsl:comment>
 		<xsl:text>&#xA;</xsl:text>
 		<metalink xmlns="urn:ietf:params:xml:ns:metalink" xmlns:nsi="http://www.w3.org/2001/XMLSchema-instance" noNamespaceSchemaLocation="metalink4.xsd">
 			<generator>dfxml2meta4.xslt/0.1.0</generator>

@@ -1,6 +1,9 @@
 // dir2ml.cpp : https://tools.ietf.org/html/rfc5854
 //
 
+// The following flag sorts the output more like hashdeep/md5deep.
+//#define SORT_LIKE_HASHDEEP
+
 #include "stdafx.h"
 
 #include <algorithm>
@@ -164,6 +167,15 @@ struct case_insensitive_compare
 		{
 			if (tolower(*lhs) != tolower(*rhs))
 			{
+#ifdef SORT_LIKE_HASHDEEP
+				// Alpha characters before '_'
+				// Not sure how else the sorting is different..
+				if (*lhs == L'_' && *rhs != L'_')
+					return false;
+				else if (*lhs != L'_' && *rhs == L'_')
+					return true;
+				else
+#endif // SORT_LIKE_HASHDEEP
 				return (tolower(*lhs) < tolower(*rhs));
 			}
 			else if (*lhs != *rhs)
