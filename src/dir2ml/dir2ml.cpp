@@ -35,11 +35,11 @@ extern "C" {
 // https://github.com/cxong/tinydir
 #include "tinydir/tinydir.h"
 
-// https ://uriparser.github.io/
+// https://uriparser.github.io/
 #include "uriparser\Uri.h"
 
 constexpr wchar_t* APP_NAME = L"dir2ml";
-constexpr wchar_t* VERSION_NO = L"0.7.1";
+constexpr wchar_t* VERSION_NO = L"0.7.2";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -117,7 +117,7 @@ struct fileNodeInfo
 	}
 
 	wstring fileName;
-	wstring filePath;
+	fs::path filePath;
 	uint_fast64_t fileSize;
 	__time64_t fileMTime;
 	wstring md5HashStr;
@@ -212,36 +212,114 @@ bool files_identical(const wstring& filename1, const wstring& filename2)
 // https://tools.ietf.org/html/rfc3986
 wstring url_encode(const wstring &fileName, const wstring& scheme)
 {
-	const size_t charsNeeded = 8 + 3 * fileName.size() + 1;
-	wchar_t* pBuffer = new wchar_t[charsNeeded];
-
-	int retVal;
-	if (scheme.empty())
-#ifdef _WIN32
-		retVal = uriWindowsFilenameToUriStringW(fileName.c_str(), pBuffer);
-#else // !_WIN32
-		retVal = uriUnixFilenameToUriStringW(fileName.c_str(), pBuffer);
-#endif // !_WIN32
-	else
-	{
-		size_t i = fileName.find(L"://");
-		retVal = uriUnixFilenameToUriStringW(fileName.c_str() + i + 3, pBuffer);
-	}
-	
-	if(retVal != URI_SUCCESS)
-	{
-		wcerr << L"Failed to convert filename \"" << fileName << L"\" to URI!" << endl;
-		return fileName;
-	}
-
 	wstring encodedUrl;
-	if (scheme.empty())
-		encodedUrl = pBuffer;
+	if (scheme == L"ni")
+		encodedUrl = wstring(L"ni:///") + fileName;
 	else
-		encodedUrl = scheme + L"://" + pBuffer;
-	delete[] pBuffer;
+	{
+		const size_t charsNeeded = 8 + 3 * fileName.size() + 1;
+		wchar_t* pBuffer = new wchar_t[charsNeeded];
+
+		int retVal;
+		if (scheme.empty())
+#ifdef _WIN32
+			retVal = uriWindowsFilenameToUriStringW(fileName.c_str(), pBuffer);
+#else // !_WIN32
+			retVal = uriUnixFilenameToUriStringW(fileName.c_str(), pBuffer);
+#endif // !_WIN32
+		else
+		{
+			size_t i = fileName.find(L"://");
+			retVal = uriUnixFilenameToUriStringW(fileName.c_str() + i + 3, pBuffer);
+		}
+
+		if (retVal != URI_SUCCESS)
+		{
+			wcerr << L"Failed to convert filename \"" << fileName << L"\" to URI!" << endl;
+			return fileName;
+		}
+
+		if (scheme.empty())
+			encodedUrl = pBuffer;
+		else
+			encodedUrl = scheme + L"://" + pBuffer;
+		delete[] pBuffer;
+	}
 
 	return encodedUrl;
+}
+
+enum BYTES_UNIT_TYPE
+{
+	METRIC_UNITS, // e.g. "kB"
+	IEC_UNITS     // e.g. "kiB"
+};
+
+uint_fast64_t minBytesToNeedHumanReadableString(BYTES_UNIT_TYPE unitType)
+{
+	_ASSERTE(unitType == METRIC_UNITS || unitType == IEC_UNITS);
+
+	if (unitType == IEC_UNITS)
+		return 1024;
+	else
+		return 1000;
+}
+
+wstring bytesToHumanReadableString(uint_fast64_t numBytes, BYTES_UNIT_TYPE unitType)
+{
+	wostringstream buf;
+
+	uint_fast64_t multiplier = minBytesToNeedHumanReadableString(unitType);
+	if (numBytes >= multiplier * multiplier * multiplier * multiplier * multiplier)
+	{
+		buf << fixed << setprecision(2)
+			<< numBytes / static_cast<double>(multiplier * multiplier * multiplier * multiplier * multiplier)
+			<< L" P";
+		if (unitType == IEC_UNITS)
+			buf << L"i";
+		buf << L"B";
+	}if (numBytes >= multiplier * multiplier * multiplier * multiplier)
+	{
+		buf << fixed << setprecision(2)
+			<< numBytes / static_cast<double>(multiplier * multiplier * multiplier * multiplier)
+			<< L" T";
+		if (unitType == IEC_UNITS)
+			buf << L"i";
+		buf << L"B";
+	}
+	else if (numBytes >= multiplier * multiplier * multiplier)
+	{
+		buf << fixed << setprecision(2)
+			<< numBytes / static_cast<double>(multiplier * multiplier * multiplier)
+			<< L" G";
+		if (unitType == IEC_UNITS)
+			buf << L"i";
+		buf << L"B";
+	}
+	else if (numBytes >= multiplier * multiplier)
+	{
+		buf << fixed << setprecision(2)
+			<< numBytes / static_cast<double>(multiplier * multiplier)
+			<< L" M";
+		if (unitType == IEC_UNITS)
+			buf << L"i";
+		buf << L"B";
+	}
+	else if (numBytes >= multiplier)
+	{
+		buf << fixed << setprecision(2)
+			<< numBytes / static_cast<double>(multiplier)
+			<< L" k";
+		if (unitType == IEC_UNITS)
+			buf << L"i";
+		buf << L"B";
+	}
+	else
+	{
+		buf << numBytes << L" B";
+	}
+
+	return buf.str();
 }
 
 // 'relativePath' is the directory path relative to ctx.rootDir_
@@ -316,7 +394,7 @@ void ProcessDir( fs::path const& relativePath,
 
 			// <file name="example.ext">
 			fs::path filePathAbs(inputDirName);
-			filePathAbs += fs::path::preferred_separator;
+			//filePathAbs += fs::path::preferred_separator;
 			filePathAbs.append(fileName);
 
 			if (wantVerbose)
@@ -533,7 +611,7 @@ void ProcessDir( fs::path const& relativePath,
 
 							if (!foundDupes)
 							{
-								wcout << L"\n*** Possible duplicate: \"" << filePathAbs
+								wcout << L"\n*** Possible duplicate: \"" << filePathAbs.wstring()
 									<< L"\" and \"" << itHashToFileNode->second->filePath
 									<< L"\" have the same size";
 								if (!(flags & FLAG_IGNORE_DATE))
@@ -941,19 +1019,52 @@ int wmain( int argc, wchar_t **argv )
 		double Mbps = ((ctx.numBytes / 1e6) * 8) / numSeconds;
 		wstring resultsTitle = wstring(APP_NAME) + L" v" + VERSION_NO + L" results:";
 		buf << L"\n" << resultsTitle
-			<< L"\n" << setw(resultsTitle.length()) << setfill(L'=') << L"="
-			<< L"\n# of files: " << ctx.numFiles
-			<< L"\n# of bytes: " << ctx.numBytes
-			<< L"\n# of seconds: " << numSeconds
-			<< L"\nBitrate (Mbps): " << Mbps;
-		if (flags & FLAG_CONSOLIDATE)
+			<< L"\n" << setw(resultsTitle.length()) << setfill(L'=') << L"=";
+
+		buf << L"\n# of input files: ";
+		buf.imbue(std::locale(""));
+		buf << ctx.numFiles;
+
+		buf << L"\n# of input bytes: " << ctx.numBytes;
+		if (ctx.numBytes >= minBytesToNeedHumanReadableString(METRIC_UNITS)
+			|| ctx.numBytes >= minBytesToNeedHumanReadableString(IEC_UNITS))
 		{
-			buf << L"\n# of unique files: " << ctx.fileNodeInfoList.size()
-				<< L"\n# of duplicates: " << ctx.numFiles - ctx.fileNodeInfoList.size();
+			buf << L" (";
+			bool needSeparator(false);
+			if (ctx.numBytes >= minBytesToNeedHumanReadableString(METRIC_UNITS))
+			{
+				buf << bytesToHumanReadableString(ctx.numBytes, METRIC_UNITS);
+				needSeparator = true;
+			}
+			if (ctx.numBytes >= minBytesToNeedHumanReadableString(IEC_UNITS))
+			{
+				if (needSeparator)
+					buf << L"/";
+				buf << bytesToHumanReadableString(ctx.numBytes, IEC_UNITS);
+			}
+			buf << L")";
 		}
 
-		if (flags & FLAG_FIND_OR_CONSOLIDATE_DUPES)
+		buf << L"\n# of seconds: " << numSeconds;
+		if (numSeconds > 60)
+		{
+			buf << L" (";
+			size_t numHours = numSeconds / (60 * 60);
+			size_t numMinutes = static_cast<size_t>(numSeconds / 60) % 60;
+			size_t numRemainder = static_cast<size_t>(numSeconds + 0.5) % 60;
+			if(numHours > 0)
+				buf << numHours << L"h";
+			if (numMinutes > 0)
+				buf << setw(2) << setfill(L'0') << numMinutes << L"m";
+			buf << setw(2) << setfill(L'0') << numRemainder << "s)";
+		}
+
+		if ((flags & FLAG_FIND_OR_CONSOLIDATE_DUPES))
 			buf << L"\n# of SHA-256 collisions: " << ctx.numCollisions;
+		else
+			buf << L"\nBitrate (Mbps): " << Mbps;
+
+		buf << L"\n# of output 'file' records: " << ctx.fileNodeInfoList.size();
 
 		statistics = buf.str();
 	}
