@@ -26,10 +26,14 @@ Compare it with the output of dir2ml (removing the parentheses first):
 	<xsl:param name="baseDirectory" />
 	<xsl:param name="baseUrl" />
 
+	<xsl:template name="encodeUrl">
+		<xsl:param name="url" />
+		<xsl:value-of select="replace(replace(replace(replace(replace(translate($url,'\','/'),' ','%20'),',','%2C'),'\(','%28'),'\)','%29'),'\+','%2B')"/>
+	</xsl:template>
 	<xsl:template match="/dfxml">
 		<xsl:text>&#xA;</xsl:text>
 		<metalink xmlns="urn:ietf:params:xml:ns:metalink" xmlns:nsi="http://www.w3.org/2001/XMLSchema-instance" noNamespaceSchemaLocation="metalink4.xsd">
-			<generator>dfxml2meta4.xslt</generator>
+			<generator>dfxml2meta4.xslt/0.1.0</generator>
 			<xsl:for-each select="fileobject">
 				<xsl:variable name="relativePath" select="translate(substring-after(substring-after(filename,$baseDirectory),'\'),'\','/')" />
 				<xsl:text>&#xA;</xsl:text>
@@ -63,25 +67,19 @@ Compare it with the output of dir2ml (removing the parentheses first):
 						</hash>
 					</xsl:for-each>
 					<url>
-						<xsl:attribute name="type">file</xsl:attribute>
 						<xsl:text>file:///</xsl:text>
-						<xsl:choose>
-							<xsl:when test="substring(filename,2,1)=':'">
-								<xsl:value-of select="lower-case(substring(filename,1,1))" />
-								<xsl:value-of select="substring(translate(filename,'\','/'),2)"/>
-							</xsl:when>
-							<xsl:otherwise>
-								<xsl:value-of select="translate(filename,'\','/')"/>
-							</xsl:otherwise>
-						</xsl:choose>
+						<xsl:call-template name="encodeUrl">
+							<xsl:with-param name="url" select="filename" />
+						</xsl:call-template>
 					</url>
 					<xsl:if test="$baseUrl">
 						<url>
-							<xsl:attribute name="type">
-								<xsl:value-of select="substring-before($baseUrl, '://')" />
-							</xsl:attribute>
+							<xsl:call-template name="encodeUrl">
+								<xsl:with-param name="url">
 							<xsl:value-of select="$baseUrl" />
 							<xsl:value-of select="$relativePath" />
+								</xsl:with-param>
+							</xsl:call-template>
 						</url>
 					</xsl:if>
 				<xsl:text>&#xA;</xsl:text>

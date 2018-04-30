@@ -394,7 +394,6 @@ void ProcessDir( fs::path const& relativePath,
 
 			// <file name="example.ext">
 			fs::path filePathAbs(inputDirName);
-			//filePathAbs += fs::path::preferred_separator;
 			filePathAbs.append(fileName);
 
 			if (wantVerbose)
