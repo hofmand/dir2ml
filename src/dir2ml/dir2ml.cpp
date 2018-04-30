@@ -1049,7 +1049,7 @@ int wmain( int argc, wchar_t **argv )
 		if (numSeconds > 60)
 		{
 			buf << L" (";
-			size_t numHours = numSeconds / (60 * 60);
+			size_t numHours = static_cast<size_t>(numSeconds) / (60 * 60);
 			size_t numMinutes = static_cast<size_t>(numSeconds / 60) % 60;
 			size_t numRemainder = static_cast<size_t>(numSeconds + 0.5) % 60;
 			if(numHours > 0)
