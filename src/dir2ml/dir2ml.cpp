@@ -1,10 +1,15 @@
 // dir2ml.cpp : https://tools.ietf.org/html/rfc5854
 //
 
+#include "stdafx.h"
+
 // The following flag sorts the output more like hashdeep/md5deep.
 //#define SORT_LIKE_HASHDEEP
 
-#include "stdafx.h"
+// 'SORT_LIKE_WINDOWS' sorts like Windows Explorer.
+#ifdef _WIN32
+//#define SORT_LIKE_WINDOWS true
+#endif
 
 #include <algorithm>
 #include <filesystem>
@@ -19,6 +24,7 @@
 #include <vector>
 
 #ifdef _WIN32
+#include "shlwapi.h"
 #define stat64 _wstat64
 #endif
 
@@ -42,7 +48,7 @@ extern "C" {
 #include "uriparser\Uri.h"
 
 constexpr wchar_t* APP_NAME = L"dir2ml";
-constexpr wchar_t* VERSION_NO = L"0.7.2";
+constexpr wchar_t* VERSION_NO = L"0.7.3";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -92,20 +98,22 @@ typedef sha256_data_size max_buf_size; // because sizeof(unsigned int) <= sizeof
 
 typedef uint_fast16_t process_dir_flags_t;
 
-constexpr process_dir_flags_t FLAG_VERBOSE      = 0x0001;
-constexpr process_dir_flags_t FLAG_MD5          = 0x0002;
-constexpr process_dir_flags_t FLAG_SHA1         = 0x0004;
-constexpr process_dir_flags_t FLAG_SHA256       = 0x0008;
-constexpr process_dir_flags_t FLAG_NI_URL       = 0x0010;
-constexpr process_dir_flags_t FLAG_CONSOLIDATE  = 0x0020;
-constexpr process_dir_flags_t FLAG_FIND_DUPES   = 0x0040;
-constexpr process_dir_flags_t FLAG_FILE_URL     = 0x0080;
-constexpr process_dir_flags_t FLAG_BASE_URL     = 0x0100;
-constexpr process_dir_flags_t FLAG_IGNORE_DATE  = 0x0200;
+constexpr process_dir_flags_t FLAG_VERBOSE                = 0x0001;
+constexpr process_dir_flags_t FLAG_MD5                    = 0x0002;
+constexpr process_dir_flags_t FLAG_SHA1                   = 0x0004;
+constexpr process_dir_flags_t FLAG_SHA256                 = 0x0008;
+constexpr process_dir_flags_t FLAG_NI_URL                 = 0x0010;
+constexpr process_dir_flags_t FLAG_CONSOLIDATE            = 0x0020;
+constexpr process_dir_flags_t FLAG_FIND_DUPES             = 0x0040;
+constexpr process_dir_flags_t FLAG_FILE_URL               = 0x0080;
+constexpr process_dir_flags_t FLAG_BASE_URL               = 0x0100;
+constexpr process_dir_flags_t FLAG_IGNORE_DATES_AND_TIMES = 0x0200;
+constexpr process_dir_flags_t FLAG_IGNORE_TIMES           = 0x0400; // but respect dates
 
 constexpr process_dir_flags_t FLAG_ALL_HASHES = FLAG_MD5 | FLAG_SHA1 | FLAG_SHA256;
 constexpr process_dir_flags_t FLAG_ALL_URL_TYPES = FLAG_NI_URL | FLAG_FILE_URL | FLAG_BASE_URL;
 constexpr process_dir_flags_t FLAG_FIND_OR_CONSOLIDATE_DUPES = FLAG_CONSOLIDATE | FLAG_FIND_DUPES;
+constexpr process_dir_flags_t FLAG_IGNORE_DATES_OR_TIMES = FLAG_IGNORE_DATES_AND_TIMES | FLAG_IGNORE_TIMES;
 
 constexpr process_dir_flags_t FLAG_DEFAULT = FLAG_SHA256;
 
@@ -154,13 +162,15 @@ struct ProcessDirContext
 
 	typedef multimap<wstring, file_node_info_list_t::iterator> hash_to_filenode_map_t;
 	hash_to_filenode_map_t hashToFileNodeMap;
-
 };
 
 struct case_insensitive_compare
 {
 	bool operator()(std::wstring const& lhsIn, std::wstring const& rhsIn) const
 	{
+#ifdef SORT_LIKE_WINDOWS
+		return StrCmpLogicalW(lhsIn.c_str(), rhsIn.c_str()) == -1;
+#else // !define SORT_LIKE_WINDOWs
 		wchar_t const* lhs = lhsIn.c_str();
 		wchar_t const* rhs = rhsIn.c_str();
 		for (; *lhs != L'\0' && *rhs != L'\0'; ++lhs, ++rhs)
@@ -187,6 +197,7 @@ struct case_insensitive_compare
 			}
 		}
 		return (tolower(*lhs) < tolower(*rhs));
+#endif // !defined SORT_LIKE_WINDOWS
 	}
 };
 
@@ -332,6 +343,39 @@ wstring bytesToHumanReadableString(uint_fast64_t numBytes, BYTES_UNIT_TYPE unitT
 	}
 
 	return buf.str();
+}
+
+typedef uint_fast16_t check_metadata_flag_t;
+constexpr check_metadata_flag_t CHECK_DATES = 0x1;
+constexpr check_metadata_flag_t CHECK_TIMES = 0x2;
+
+static bool FileMetadataMatches(fileNodeInfo const& file1, fileNodeInfo const& file2, check_metadata_flag_t flags)
+{
+	// CHECK_TIMES cannot function without CHECK_DATES
+	_ASSERTE((flags & (CHECK_DATES | CHECK_TIMES)) != CHECK_TIMES);
+
+	// File sizes must always match
+	if (file1.fileSize != file2.fileSize)
+		return false;
+
+	// If we're ignoring file dates, the files match
+	if (!(flags & CHECK_DATES))
+		return true;
+
+	// If we're checking file dates and times, it's a simple check
+	if (flags & CHECK_TIMES)
+		return file1.fileMTime == file2.fileMTime;
+
+	// We're checking file dates only and ignoring times.
+
+	tm timeStruct1;
+	_localtime64_s(&timeStruct1, &file1.fileMTime);
+
+	tm timeStruct2;
+	_localtime64_s(&timeStruct2, &file2.fileMTime);
+
+	return timeStruct1.tm_year == timeStruct2.tm_year
+		&& timeStruct1.tm_yday == timeStruct2.tm_yday;
 }
 
 // 'relativePath' is the directory path relative to ctx.rootDir_
@@ -593,8 +637,13 @@ void ProcessDir( fs::path const& relativePath,
 					while (itHashToFileNode != ctx.hashToFileNodeMap.end()
 						&& itHashToFileNode->first == thisNode.sha256HashStr)
 					{
-						if (itHashToFileNode->second->fileSize == thisNode.fileSize
-							&& ((flags & FLAG_IGNORE_DATE) || (itHashToFileNode->second->fileMTime == thisNode.fileMTime)) )
+						check_metadata_flag_t metadataFlags(0);
+						if (flags & FLAG_IGNORE_TIMES) // ignore times but respect dates?
+							metadataFlags |= CHECK_DATES;
+						else if (!(flags & FLAG_IGNORE_DATES_AND_TIMES)) // respect both dates and times?
+							metadataFlags |= (CHECK_DATES | CHECK_TIMES);
+
+						if(FileMetadataMatches(*itHashToFileNode->second, thisNode, metadataFlags))
 						{
 							for (auto it = (*thisNode.urlMap.get()).begin();
 								it != (*thisNode.urlMap.get()).end(); ++it)
@@ -625,7 +674,7 @@ void ProcessDir( fs::path const& relativePath,
 								wcout << L"\n*** Possible duplicate: \"" << filePathAbs.wstring()
 									<< L"\" and \"" << itHashToFileNode->second->filePath
 									<< L"\" have the same size";
-								if (!(flags & FLAG_IGNORE_DATE))
+								if (!(flags & FLAG_IGNORE_DATES_OR_TIMES))
 									wcout << L", last modified date,";
 								wcout << L" and SHA-256 hash! Verifying byte by byte... ";
 							}
@@ -832,7 +881,12 @@ int wmain( int argc, wchar_t **argv )
 		}
 		else if (argText == L"--ignore-file-dates")
 		{
-			flags |= FLAG_IGNORE_DATE;
+			flags |= FLAG_IGNORE_DATES_AND_TIMES;
+			validArg = true;
+		}
+		else if (argText == L"--ignore-file-times")
+		{
+			flags |= FLAG_IGNORE_TIMES;
 			validArg = true;
 		}
 
@@ -923,9 +977,15 @@ int wmain( int argc, wchar_t **argv )
 			invalidArgs = true;
 		}
 
-		if ((flags & FLAG_IGNORE_DATE) && !(flags & FLAG_FIND_OR_CONSOLIDATE_DUPES))
+		if ((flags & FLAG_IGNORE_DATES_OR_TIMES) && !(flags & FLAG_FIND_OR_CONSOLIDATE_DUPES))
 		{
-			wcerr << L"--ignore-file-dates requires --find-duplicates or --consolidate-duplicates!" << endl;
+			wcerr << L"--ignore-file-dates and --ignore-file-times require --find-duplicates or --consolidate-duplicates!" << endl;
+			invalidArgs = true;
+		}
+
+		if ((flags & FLAG_IGNORE_DATES_OR_TIMES) == FLAG_IGNORE_DATES_OR_TIMES)
+		{
+			wcerr << L"--ignore-file-dates and --ignore-file-times are mutually exclusive!" << endl;
 			invalidArgs = true;
 		}
 	}
@@ -964,7 +1024,8 @@ int wmain( int argc, wchar_t **argv )
 			<< L" --hash-type hash-list - Calculate and output hash-list (comma-separated). Available hashes are md5, sha1, sha256, and all. If none are specified, sha256 is used.\n"
 			<< L" --find-duplicates - Add URLs from all duplicate files to each matching metalink `file` node.\n"
 			<< L" --consolidate-duplicates - Add duplicate URLs from all duplicate files to the first matching metalink `file` node and remove the other matching `file` nodes.\n"
-			<< L" --ignore-file-dates - Ignore file \"last modified\" dates when finding or consolidating duplicates." << endl
+			<< L" --ignore-file-dates - Ignore file \"last modified\" dates and times when finding or consolidating duplicates." << endl
+			<< L" --ignore-file-times - Ignore file \"last modified\" times (but respect dates) when finding or consolidating duplicates." << endl
 			<< L" --ni-url - Output Named Information (RFC6920) links (experimental). Requires --hash-type sha256" << endl;
 	}
 

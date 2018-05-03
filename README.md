@@ -82,7 +82,9 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 
 **`--consolidate-duplicates`** - Add duplicate URLs from all duplicate files to the *first* matching metalink `file` node and remove the other matching `file` nodes. **This does *not* perfectly preserve the directory structure.** Running `dir2ml` with this flag turned on takes more time than without the flag but results in the smallest possible `.meta4` file sizes. Add `--ignore-file-dates` to consolidate duplicate files further by ignoring file modification times.
 
-**`--ignore-file-dates`** - Ignore file "last modified" dates when finding or consolidating duplicates. **This will *not* preserve file dates.** Turn this flag on when you care more about keeping the `.meta4` file small than about preserving file dates. Requires `--find-duplicates` or `--consolidate-duplicates`.
+**`--ignore-file-dates`** - Ignore file "last modified" dates and times when finding or consolidating duplicates. **This will *not* preserve file timestamps.** Turn this flag on when you care more about keeping the `.meta4` file small than about preserving file dates. Requires `--find-duplicates` or `--consolidate-duplicates`.
+
+**`--ignore-file-times`** - Ignore file "last modified" times (but respect dates) when finding or consolidating duplicates.  Requires `--find-duplicates` or `--consolidate-duplicates`.
 
 **`--ni-url`** - Output Named Information ([RFC6920](https://tools.ietf.org/html/rfc6920)) links (experimental). Requires `--hash-type sha256`
 
