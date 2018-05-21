@@ -127,6 +127,7 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 * Convert [QuickHash](https://quickhash-gui.org/) output files to metalink files if possible (unless the developer decides to [output metalink files directly](https://quickhash-gui.org/bugs/output-in-rfc5854-format/))
 * Add [xxHash](https://github.com/Cyan4973/xxHash) and/or [FarmHash](https://github.com/google/farmhash) algorithms
 * Import from [SFV](https://en.wikipedia.org/wiki/Simple_file_verification) format.
+* Provide a means to verify hashes.
 
 ## Also See
 * [Wikipedia: Comparison of file verification software](https://en.wikipedia.org/wiki/Comparison_of_file_verification_software)
