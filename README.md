@@ -116,6 +116,7 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 
 ## Future Plans
 * Port the code to Linux/BSD
+* Support WARC files (`warc2meta`?)
 * Generate additional metadata from [Image::ExifTool](http://owl.phy.queensu.ca/~phil/cpp_exiftool/), [uchardet](https://github.com/BYVoid/uchardet), etc.
 * Add `.torrent` files to `<metaurl>` subnodes
 * Filter by file size, type, etc.
@@ -141,6 +142,7 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 * [OpenTimestamps](https://opentimestamps.org/) - a service to store hashes in the blockchain.
 * [Redump.org](http://redump.org/) - a database of hashes of computer/console game dumps.
 * [RHash](https://github.com/rhash/RHash) - another hashing utility.
+* Reddit comment: [Best way to archive a website](https://www.reddit.com/r/DataHoarder/comments/8s4vef/best_way_to_archive_a_website/e0xb84f). 
 
 ## Built With
 * Microsoft Visual Studio 2015; targeting x64, Unicode
