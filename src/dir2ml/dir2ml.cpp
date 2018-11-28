@@ -48,7 +48,7 @@ extern "C" {
 #include "uriparser\Uri.h"
 
 constexpr wchar_t* APP_NAME = L"dir2ml";
-constexpr wchar_t* VERSION_NO = L"0.7.3";
+constexpr wchar_t* VERSION_NO = L"0.7.4-beta.5";
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -65,7 +65,7 @@ constexpr wchar_t* VERSION_NO = L"0.7.3";
 // Example output file:
 //
 // <?xml version="1.0" encoding="UTF-8"?>
-// <metalink xmlns="urn:ietf:params:xml:ns:metalink" xmlns:nsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="metalink4.xsd">
+// <metalink xmlns="urn:ietf:params:xml:ns:metalink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="metalink4.xsd">
 //   <file name="example.ext">
 //     <size>14471447</size>
 //     <generator>dir2ml/0.1.0</generator>
@@ -1045,7 +1045,7 @@ int wmain( int argc, wchar_t **argv )
 	pugi::xml_node xmlRootNode = xmlDoc.append_child(L"metalink");
 	xmlRootNode.append_attribute(L"xmlns")
 		.set_value(L"urn:ietf:params:xml:ns:metalink");
-	xmlRootNode.append_attribute(L"xmlns:nsi")
+	xmlRootNode.append_attribute(L"xmlns:xsi")
 		.set_value(L"http://www.w3.org/2001/XMLSchema-instance");
 	xmlRootNode.append_attribute(L"xsi:noNamespaceSchemaLocation")
 		.set_value(L"metalink4.xsd");
