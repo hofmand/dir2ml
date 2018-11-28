@@ -56,7 +56,7 @@ Also included are a schema file (`metalink4.xsd` copied from [here](https://gith
 
 **`-o`**, **`--output`** *outfile* - Output filename (`.meta4` or `.metalink`)
 
-If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be supplied.
+At least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be supplied.
 
 ### Optional Arguments:
 
@@ -91,7 +91,7 @@ If at least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be s
 ## Example Output File
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<metalink xmlns="urn:ietf:params:xml:ns:metalink" xmlns:nsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="metalink4.xsd">
+<metalink xmlns="urn:ietf:params:xml:ns:metalink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="metalink4.xsd">
   <generator>dir2ml/0.1.0</generator>
   <published>2010-05-01T12:15:02Z</published>
   <file name="example.ext">
