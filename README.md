@@ -127,7 +127,7 @@ At least one of `-u`/`--base-url`, `-f`/`--file-url`, or `--ni-url` must be supp
 * Output the `.meta4` file directly to a `.zip` / `.rar` / `.7z` container, in order to save storage space
 * Convert [QuickHash](https://quickhash-gui.org/) output files to metalink files if possible (unless the developer decides to [output metalink files directly](https://quickhash-gui.org/bugs/output-in-rfc5854-format/))
 * Add [xxHash](https://github.com/Cyan4973/xxHash) and/or [FarmHash](https://github.com/google/farmhash) algorithms
-* Import from [SFV](https://en.wikipedia.org/wiki/Simple_file_verification) format.
+* Import from [SFV](https://en.wikipedia.org/wiki/Simple_file_verification), [md5sum](https://en.wikipedia.org/wiki/Md5sum), and [sha1sum](https://en.wikipedia.org/wiki/Sha1sum) formats.
 * Provide a means to verify hashes.
 
 ## Also See
